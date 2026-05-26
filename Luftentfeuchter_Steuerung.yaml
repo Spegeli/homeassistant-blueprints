@@ -1,134 +1,289 @@
 blueprint:
   name: "[OWN] Luftentfeuchter Steuerung"
   description: |
-    Version 1.2
-    
-    Steuert den Luftentfeuchter basierend auf der Luftfeuchtigkeit.
-    Optional: nur innerhalb eines bestimmten Zeitfensters aktiv.
+    Version 2.0
+
+    Steuert den Luftentfeuchter dynamisch basierend auf physikalisch fundierter
+    Entscheidungslogik:
+
+    - Vergleicht absolute Außen- und Innenluftfeuchtigkeit:
+      Wenn Lüften effizienter wäre (Außenluft trockener UND nicht zu warm),
+      bleibt der Entfeuchter aus.
+    - Notfall-Override bei kritisch hoher Innenfeuchte (unabhängig von Außenluft).
+    - Hysterese verhindert Taktung.
+    - Optional: nur innerhalb eines Zeitfensters aktiv.
   domain: automation
   input:
     humidifier_entity:
       name: Luftentfeuchter
-      description: Wähle den Luftentfeuchter
+      description: Wähle den Luftentfeuchter (Domain: humidifier)
       selector:
         entity:
           domain: humidifier
-    humidity_sensor:
-      name: Luftfeuchtigkeitssensor
-      description: Wähle den Luftfeuchtigkeitssensor
+
+    # --- Innensensoren ---
+    indoor_rh_sensor:
+      name: Innen – Relative Luftfeuchtigkeit
+      description: Sensor für die relative Innenluftfeuchtigkeit (%)
       selector:
         entity:
           filter:
             - domain: sensor
               device_class: humidity
-    turn_on_humidity:
-      name: Einschaltwert (%)
-      description: Luftfeuchtigkeit über diesem Wert schaltet den Luftentfeuchter ein
+
+    indoor_abs_sensor:
+      name: Innen – Absolute Luftfeuchtigkeit
+      description: Sensor für die absolute Innenluftfeuchtigkeit (g/m³)
+      selector:
+        entity:
+          domain: sensor
+
+    indoor_temp_sensor:
+      name: Innen – Temperatur
+      description: Sensor für die Innentemperatur (°C)
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+              device_class: temperature
+
+    # --- Außensensoren ---
+    outdoor_rh_sensor:
+      name: Außen – Relative Luftfeuchtigkeit
+      description: Sensor für die relative Außenluftfeuchtigkeit (%)
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+              device_class: humidity
+
+    outdoor_abs_sensor:
+      name: Außen – Absolute Luftfeuchtigkeit
+      description: Sensor für die absolute Außenluftfeuchtigkeit (g/m³)
+      selector:
+        entity:
+          domain: sensor
+
+    outdoor_temp_sensor:
+      name: Außen – Temperatur
+      description: Sensor für die Außentemperatur (°C)
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+              device_class: temperature
+
+    # --- Schwellwerte ---
+    target_rh:
+      name: Ziel-Luftfeuchtigkeit (%)
+      description: >
+        Oberhalb dieses Wertes wird Entfeuchten angestrebt (Komfortschwelle).
+        Unterhalb der kritischen Schwelle wird der Außenluft-Vergleich
+        berücksichtigt.
       default: 60
       selector:
         number:
-          min: 1
-          max: 100
+          min: 40
+          max: 90
+          step: 1
           unit_of_measurement: "%"
           mode: slider
-    turn_off_humidity:
-      name: Ausschaltwert (%)
-      description: Luftfeuchtigkeit unter diesem Wert schaltet den Luftentfeuchter aus
-      default: 50
+
+    turn_off_rh:
+      name: Ausschaltwert – Hysterese (%)
+      description: >
+        Der Entfeuchter schaltet erst aus, wenn die Innenfeuchte diesen Wert
+        unterschreitet. Sollte kleiner als die Ziel-Luftfeuchtigkeit sein,
+        um Taktung zu vermeiden.
+      default: 55
       selector:
         number:
-          min: 1
-          max: 100
+          min: 30
+          max: 85
+          step: 1
           unit_of_measurement: "%"
           mode: slider
+
+    critical_rh:
+      name: Kritische Luftfeuchtigkeit – Notfall-Override (%)
+      description: >
+        Überschreitet die Innenfeuchte diesen Wert, wird der Entfeuchter
+        unabhängig vom Außenluft-Vergleich und der Außentemperatur eingeschaltet.
+        (Schimmelschutz)
+      default: 70
+      selector:
+        number:
+          min: 50
+          max: 100
+          step: 1
+          unit_of_measurement: "%"
+          mode: slider
+
+    enable_outdoor_compare:
+      name: Außenluft-Vergleich aktivieren?
+      description: >
+        Wenn aktiviert: Der Entfeuchter bleibt aus, solange Lüften sinnvoller
+        wäre (absolute Außenfeuchte kleiner als innen UND Außentemperatur
+        nicht zu hoch). Wenn deaktiviert: nur auf Innenfeuchte reagieren.
+      default: true
+      selector:
+        boolean:
+
+    max_temp_diff_for_ventilation:
+      name: Max. Temperaturdifferenz für Lüftungsempfehlung (°C)
+      description: >
+        Lüften gilt nur dann als sinnvoll, wenn die Außentemperatur die
+        Innentemperatur um maximal diesen Wert überschreitet.
+        Verhindert, dass im Sommer bei heißer Außenluft Lüften empfohlen wird,
+        obwohl die Außenluft absolut trockener ist.
+        Empfehlung: 2°C.
+      default: 2
+      selector:
+        number:
+          min: 0
+          max: 10
+          step: 0.5
+          unit_of_measurement: "°C"
+          mode: slider
+
+    # --- Zeitfenster ---
     enable_time_check:
-      name: "Zeitfenster aktiv?"
-      description: "Wenn aktiviert, wird nur zwischen der Start- und Endzeit entfeuchtet."
+      name: Zeitfenster aktiv?
+      description: >
+        Wenn aktiviert, wird nur zwischen der Start- und Endzeit entfeuchtet.
+        Außerhalb des Zeitfensters wird der Entfeuchter ausgeschaltet.
       default: false
       selector:
         boolean:
+
     start_time:
-      name: "Startzeit"
+      name: Startzeit
       default: "09:00:00"
       selector:
         time:
+
     end_time:
-      name: "Endzeit"
+      name: Endzeit
       default: "22:00:00"
       selector:
         time:
 
 mode: single
 max_exceeded: silent
+
 trigger:
   - platform: state
-    entity_id: !input humidity_sensor
+    entity_id:
+      - !input indoor_rh_sensor
+      - !input indoor_abs_sensor
+      - !input outdoor_abs_sensor
+      - !input outdoor_temp_sensor
+      - !input indoor_temp_sensor
   - platform: time_pattern
-    minutes: "/1"
+    minutes: "/5"
+
 condition: []
 
 variables:
+  # Zeitfenster-Inputs
   enable_time_check: !input enable_time_check
   start_time: !input start_time
   end_time: !input end_time
 
+  # Schwellwert-Inputs
+  target_rh: !input target_rh
+  turn_off_rh: !input turn_off_rh
+  critical_rh: !input critical_rh
+  enable_outdoor_compare: !input enable_outdoor_compare
+  max_temp_diff_for_ventilation: !input max_temp_diff_for_ventilation
+
+  # Entity-IDs als Variablen (notwendig für states()-Aufruf in Jinja2-Templates)
+  _indoor_rh_id: !input indoor_rh_sensor
+  _indoor_abs_id: !input indoor_abs_sensor
+  _indoor_temp_id: !input indoor_temp_sensor
+  _outdoor_abs_id: !input outdoor_abs_sensor
+  _outdoor_temp_id: !input outdoor_temp_sensor
+
+  # Sensor-Werte als Zahlen
+  indoor_rh: "{{ states(_indoor_rh_id) | float(0) }}"
+  indoor_abs: "{{ states(_indoor_abs_id) | float(0) }}"
+  outdoor_abs: "{{ states(_outdoor_abs_id) | float(0) }}"
+
+  # Zeitfenster-Prüfung (unterstützt auch Zeitfenster über Mitternacht)
+  in_time_window: >
+    {% if not enable_time_check %}
+      true
+    {% else %}
+      {% set n = now().strftime('%H:%M:%S') %}
+      {% if start_time < end_time %}
+        {{ start_time <= n <= end_time }}
+      {% else %}
+        {{ n >= start_time or n <= end_time }}
+      {% endif %}
+    {% endif %}
+
+  # Lüften ist sinnvoll wenn:
+  # 1. Außen-AH < Innen-AH (Außenluft trockener – bringt weniger Wasser rein)
+  # 2. Außentemperatur nicht zu hoch (sonst heizt Lüften die Wohnung auf)
+  # Bei unavailable/unknown Sensoren: sicher auf false setzen (Entfeuchter läuft)
+  ventilation_preferred: >
+    {% set o_abs = states(_outdoor_abs_id) %}
+    {% set i_abs = states(_indoor_abs_id) %}
+    {% set o_temp = states(_outdoor_temp_id) %}
+    {% set i_temp = states(_indoor_temp_id) %}
+    {% if o_abs in ['unavailable', 'unknown', 'none']
+       or i_abs in ['unavailable', 'unknown', 'none']
+       or o_temp in ['unavailable', 'unknown', 'none']
+       or i_temp in ['unavailable', 'unknown', 'none'] %}
+      false
+    {% else %}
+      {{ enable_outdoor_compare
+         and o_abs | float < i_abs | float
+         and o_temp | float <= i_temp | float + max_temp_diff_for_ventilation | float(2) }}
+    {% endif %}
+
 action:
   - choose:
+
+      # Zweig 1: Außerhalb Zeitfenster → ausschalten
       - conditions:
           - condition: template
-            value_template: >
-              {% if not enable_time_check %}
-                true
-              {% else %}
-                {% set now = now().strftime('%H:%M:%S') %}
-                {% if start_time < end_time %}
-                  {{ start_time <= now <= end_time }}
-                {% else %}
-                  {{ now >= start_time or now <= end_time }}
-                {% endif %}
-              {% endif %}
-          - condition: numeric_state
-            entity_id: !input humidity_sensor
-            above: !input turn_on_humidity
+            value_template: "{{ enable_time_check and not in_time_window }}"
+        sequence:
+          - action: humidifier.turn_off
+            target:
+              entity_id: !input humidifier_entity
+
+      # Zweig 2: Notfall-Override → immer einschalten (Schimmelschutz)
+      # Ignoriert Außenluft-Vergleich und Außentemperatur
+      - conditions:
+          - condition: template
+            value_template: "{{ indoor_rh >= critical_rh }}"
         sequence:
           - action: humidifier.turn_on
             target:
               entity_id: !input humidifier_entity
+
+      # Zweig 3: Normales Einschalten
+      # Bedingung: Innenfeuchte über Zielwert UND Lüften würde nicht helfen
       - conditions:
           - condition: template
-            value_template: >
-              {% if not enable_time_check %}
-                true
-              {% else %}
-                {% set now = now().strftime('%H:%M:%S') %}
-                {% if start_time < end_time %}
-                  {{ start_time <= now <= end_time }}
-                {% else %}
-                  {{ now >= start_time or now <= end_time }}
-                {% endif %}
-              {% endif %}  
-          - condition: numeric_state
-            entity_id: !input humidity_sensor
-            below: !input turn_off_humidity
+            value_template: "{{ indoor_rh >= target_rh and not ventilation_preferred }}"
+        sequence:
+          - action: humidifier.turn_on
+            target:
+              entity_id: !input humidifier_entity
+
+      # Zweig 4: Ausschalten (Hysterese)
+      # Erst ausschalten wenn Feuchte deutlich unter Zielwert – verhindert Taktung
+      - conditions:
+          - condition: template
+            value_template: "{{ indoor_rh < turn_off_rh }}"
         sequence:
           - action: humidifier.turn_off
             target:
               entity_id: !input humidifier_entity
-      - conditions:
-          - condition: template
-            value_template: >
-              {% if enable_time_check %}
-                {% set now = now().strftime('%H:%M:%S') %}
-                {% if start_time < end_time %}
-                  {{ not (start_time <= now <= end_time) }}
-                {% else %}
-                  {{ not (now >= start_time or now <= end_time) }}
-                {% endif %}
-              {% else %}
-                false
-              {% endif %}
-        sequence:
-          - action: humidifier.turn_off
-            target:
-              entity_id: !input humidifier_entity              
+
+    # Hysterese-Zone (zwischen turn_off_rh und target_rh):
+    # Kein Zweig greift → keine Aktion → Gerät bleibt im aktuellen Zustand
     default: []
