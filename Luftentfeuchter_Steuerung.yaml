@@ -1,14 +1,14 @@
 blueprint:
   name: "[OWN] Luftentfeuchter Steuerung"
   description: |
-    Version 2.1
+    Version 2.2
 
     Steuert den Luftentfeuchter dynamisch basierend auf physikalisch fundierter
     Entscheidungslogik:
 
     - Vergleicht absolute Außen- und Innenluftfeuchtigkeit:
-      Wenn Lüften effizienter wäre (Außenluft trockener UND nicht zu warm),
-      bleibt der Entfeuchter aus.
+      Wenn Lüften effizienter wäre (Außenluft trockener UND Außentemperatur
+      unterhalb der konfigurierten Wohlfühltemperatur), bleibt der Entfeuchter aus.
     - Fenster/Tür-Sensoren: Entfeuchter schaltet automatisch ab wenn ein
       Fenster oder eine Tür geöffnet wird (mehrere Sensoren möglich).
     - Mindest-Ausschaltzeit schützt den Kompressor vor Kurzzyklen.
@@ -40,15 +40,6 @@ blueprint:
       selector:
         entity:
           domain: sensor
-
-    indoor_temp_sensor:
-      name: Innen – Temperatur
-      description: Sensor für die Innentemperatur (°C)
-      selector:
-        entity:
-          filter:
-            - domain: sensor
-              device_class: temperature
 
     # --- Außensensoren ---
     outdoor_rh_sensor:
@@ -100,8 +91,6 @@ blueprint:
       name: Ziel-Luftfeuchtigkeit (%)
       description: >
         Oberhalb dieses Wertes wird Entfeuchten angestrebt (Komfortschwelle).
-        Unterhalb der kritischen Schwelle wird der Außenluft-Vergleich
-        berücksichtigt.
       default: 60
       selector:
         number:
@@ -162,26 +151,24 @@ blueprint:
       description: >
         Wenn aktiviert: Der Entfeuchter bleibt aus, solange Lüften sinnvoller
         wäre (absolute Außenfeuchte kleiner als innen UND Außentemperatur
-        nicht zu hoch). Wenn deaktiviert: nur auf Innenfeuchte reagieren.
+        unterhalb der Wohlfühltemperatur). Wenn deaktiviert: nur auf
+        Innenfeuchte reagieren.
       default: true
       selector:
         boolean:
 
-    max_temp_diff_for_ventilation:
-      name: Max. Temperaturdifferenz für Lüftungsempfehlung (°C)
+    max_comfort_temp:
+      name: Maximale Wohlfühltemperatur (°C)
       description: >
-        Lüften gilt nur dann als sinnvoll, wenn die Außentemperatur die
-        Innentemperatur um maximal diesen Wert überschreitet.
-        Standard 0°C: Lüften wird nur empfohlen wenn es draußen gleich kalt
-        oder kälter ist als innen – verhindert, dass die Wohnung durch
-        wiederholtes Lüften schrittweise auf Außentemperatur aufheizt.
-        Negative Werte (z.B. -2) verlangen, dass es draußen mindestens so
-        viel kühler sein muss.
-      default: 0
+        Lüften wird nur empfohlen, wenn die Außentemperatur diesen Wert nicht
+        überschreitet. Dadurch wird die Wohnung durch Lüften niemals wärmer
+        als diese Grenze. Beispiel: 23°C – bei 17°C außen und 15°C innen
+        wird Lüften empfohlen (17 ≤ 23); bei 26°C außen nicht (26 > 23).
+      default: 23
       selector:
         number:
-          min: -5
-          max: 5
+          min: 15
+          max: 30
           step: 0.5
           unit_of_measurement: "°C"
           mode: slider
@@ -218,7 +205,6 @@ trigger:
       - !input indoor_abs_sensor
       - !input outdoor_abs_sensor
       - !input outdoor_temp_sensor
-      - !input indoor_temp_sensor
   - platform: state
     entity_id: !input window_door_sensors
   - platform: time_pattern
@@ -238,13 +224,12 @@ variables:
   critical_rh: !input critical_rh
   min_off_time: !input min_off_time
   enable_outdoor_compare: !input enable_outdoor_compare
-  max_temp_diff_for_ventilation: !input max_temp_diff_for_ventilation
+  max_comfort_temp: !input max_comfort_temp
 
   # Entity-IDs als Variablen (notwendig für states()-Aufruf in Jinja2-Templates)
   _humidifier_id: !input humidifier_entity
   _indoor_rh_id: !input indoor_rh_sensor
   _indoor_abs_id: !input indoor_abs_sensor
-  _indoor_temp_id: !input indoor_temp_sensor
   _outdoor_abs_id: !input outdoor_abs_sensor
   _outdoor_temp_id: !input outdoor_temp_sensor
   _window_sensors: !input window_door_sensors
@@ -277,7 +262,7 @@ variables:
     {% endif %}
 
   # Kompressor-Schutz: Entfeuchter darf erst wieder starten wenn Mindest-Ausschaltzeit abgelaufen
-  # Falls Entfeuchter läuft oder Zustand unbekannt: kein Einschränkung
+  # Falls Entfeuchter läuft oder Zustand unbekannt: keine Einschränkung
   compressor_ready: >
     {% set h_state = states(_humidifier_id) %}
     {% if h_state in ['unavailable', 'unknown'] %}
@@ -289,23 +274,21 @@ variables:
     {% endif %}
 
   # Lüften ist sinnvoll wenn:
-  # 1. Außen-AH < Innen-AH (Außenluft trockener – bringt weniger Wasser rein)
-  # 2. Außentemperatur nicht zu hoch (sonst heizt Lüften die Wohnung auf)
+  # 1. Außen-AH < Innen-AH (Außenluft trockener)
+  # 2. Außentemperatur ≤ max_comfort_temp (Lüften heizt Wohnung nicht über Wohlfühlgrenze)
   # Bei unavailable/unknown Sensoren: sicher auf false setzen (Entfeuchter läuft)
   ventilation_preferred: >
     {% set o_abs = states(_outdoor_abs_id) %}
     {% set i_abs = states(_indoor_abs_id) %}
     {% set o_temp = states(_outdoor_temp_id) %}
-    {% set i_temp = states(_indoor_temp_id) %}
     {% if o_abs in ['unavailable', 'unknown', 'none']
        or i_abs in ['unavailable', 'unknown', 'none']
-       or o_temp in ['unavailable', 'unknown', 'none']
-       or i_temp in ['unavailable', 'unknown', 'none'] %}
+       or o_temp in ['unavailable', 'unknown', 'none'] %}
       false
     {% else %}
       {{ enable_outdoor_compare
          and o_abs | float < i_abs | float
-         and o_temp | float <= i_temp | float + max_temp_diff_for_ventilation | float(2) }}
+         and o_temp | float <= max_comfort_temp | float(23) }}
     {% endif %}
 
 action:
