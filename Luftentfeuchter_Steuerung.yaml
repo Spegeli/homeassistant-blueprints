@@ -1,0 +1,134 @@
+blueprint:
+  name: "[OWN] Luftentfeuchter Steuerung"
+  description: |
+    Version 1.2
+    
+    Steuert den Luftentfeuchter basierend auf der Luftfeuchtigkeit.
+    Optional: nur innerhalb eines bestimmten Zeitfensters aktiv.
+  domain: automation
+  input:
+    humidifier_entity:
+      name: Luftentfeuchter
+      description: Wähle den Luftentfeuchter
+      selector:
+        entity:
+          domain: humidifier
+    humidity_sensor:
+      name: Luftfeuchtigkeitssensor
+      description: Wähle den Luftfeuchtigkeitssensor
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+              device_class: humidity
+    turn_on_humidity:
+      name: Einschaltwert (%)
+      description: Luftfeuchtigkeit über diesem Wert schaltet den Luftentfeuchter ein
+      default: 60
+      selector:
+        number:
+          min: 1
+          max: 100
+          unit_of_measurement: "%"
+          mode: slider
+    turn_off_humidity:
+      name: Ausschaltwert (%)
+      description: Luftfeuchtigkeit unter diesem Wert schaltet den Luftentfeuchter aus
+      default: 50
+      selector:
+        number:
+          min: 1
+          max: 100
+          unit_of_measurement: "%"
+          mode: slider
+    enable_time_check:
+      name: "Zeitfenster aktiv?"
+      description: "Wenn aktiviert, wird nur zwischen der Start- und Endzeit entfeuchtet."
+      default: false
+      selector:
+        boolean:
+    start_time:
+      name: "Startzeit"
+      default: "09:00:00"
+      selector:
+        time:
+    end_time:
+      name: "Endzeit"
+      default: "22:00:00"
+      selector:
+        time:
+
+mode: single
+max_exceeded: silent
+trigger:
+  - platform: state
+    entity_id: !input humidity_sensor
+  - platform: time_pattern
+    minutes: "/1"
+condition: []
+
+variables:
+  enable_time_check: !input enable_time_check
+  start_time: !input start_time
+  end_time: !input end_time
+
+action:
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: >
+              {% if not enable_time_check %}
+                true
+              {% else %}
+                {% set now = now().strftime('%H:%M:%S') %}
+                {% if start_time < end_time %}
+                  {{ start_time <= now <= end_time }}
+                {% else %}
+                  {{ now >= start_time or now <= end_time }}
+                {% endif %}
+              {% endif %}
+          - condition: numeric_state
+            entity_id: !input humidity_sensor
+            above: !input turn_on_humidity
+        sequence:
+          - action: humidifier.turn_on
+            target:
+              entity_id: !input humidifier_entity
+      - conditions:
+          - condition: template
+            value_template: >
+              {% if not enable_time_check %}
+                true
+              {% else %}
+                {% set now = now().strftime('%H:%M:%S') %}
+                {% if start_time < end_time %}
+                  {{ start_time <= now <= end_time }}
+                {% else %}
+                  {{ now >= start_time or now <= end_time }}
+                {% endif %}
+              {% endif %}  
+          - condition: numeric_state
+            entity_id: !input humidity_sensor
+            below: !input turn_off_humidity
+        sequence:
+          - action: humidifier.turn_off
+            target:
+              entity_id: !input humidifier_entity
+      - conditions:
+          - condition: template
+            value_template: >
+              {% if enable_time_check %}
+                {% set now = now().strftime('%H:%M:%S') %}
+                {% if start_time < end_time %}
+                  {{ not (start_time <= now <= end_time) }}
+                {% else %}
+                  {{ not (now >= start_time or now <= end_time) }}
+                {% endif %}
+              {% else %}
+                false
+              {% endif %}
+        sequence:
+          - action: humidifier.turn_off
+            target:
+              entity_id: !input humidifier_entity              
+    default: []
