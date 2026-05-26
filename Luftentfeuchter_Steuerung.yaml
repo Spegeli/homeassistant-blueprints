@@ -1,7 +1,7 @@
 blueprint:
   name: "[OWN] Luftentfeuchter Steuerung"
   description: |
-    Version 2.0
+    Version 2.1
 
     Steuert den Luftentfeuchter dynamisch basierend auf physikalisch fundierter
     Entscheidungslogik:
@@ -9,7 +9,10 @@ blueprint:
     - Vergleicht absolute Außen- und Innenluftfeuchtigkeit:
       Wenn Lüften effizienter wäre (Außenluft trockener UND nicht zu warm),
       bleibt der Entfeuchter aus.
-    - Notfall-Override bei kritisch hoher Innenfeuchte (unabhängig von Außenluft).
+    - Fenster/Tür-Sensoren: Entfeuchter schaltet automatisch ab wenn ein
+      Fenster oder eine Tür geöffnet wird (mehrere Sensoren möglich).
+    - Mindest-Ausschaltzeit schützt den Kompressor vor Kurzzyklen.
+    - Notfall-Override bei kritisch hoher Innenfeuchte (Schimmelschutz).
     - Hysterese verhindert Taktung.
     - Optional: nur innerhalb eines Zeitfensters aktiv.
   domain: automation
@@ -73,6 +76,25 @@ blueprint:
             - domain: sensor
               device_class: temperature
 
+    # --- Fenster / Türen ---
+    window_door_sensors:
+      name: Fenster/Tür-Sensoren (optional)
+      description: >
+        Einer oder mehrere Fenster- bzw. Türsensoren. Solange mindestens einer
+        davon "offen" meldet, wird der Entfeuchter ausgeschaltet.
+        Ausnahme: Notfall-Override bei kritisch hoher Luftfeuchtigkeit.
+      default: []
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: binary_sensor
+              device_class: window
+            - domain: binary_sensor
+              device_class: door
+            - domain: binary_sensor
+              device_class: opening
+
     # --- Schwellwerte ---
     target_rh:
       name: Ziel-Luftfeuchtigkeit (%)
@@ -108,8 +130,8 @@ blueprint:
       name: Kritische Luftfeuchtigkeit – Notfall-Override (%)
       description: >
         Überschreitet die Innenfeuchte diesen Wert, wird der Entfeuchter
-        unabhängig vom Außenluft-Vergleich und der Außentemperatur eingeschaltet.
-        (Schimmelschutz)
+        unabhängig vom Außenluft-Vergleich, der Außentemperatur und geöffneten
+        Fenstern eingeschaltet. (Schimmelschutz)
       default: 70
       selector:
         number:
@@ -117,6 +139,22 @@ blueprint:
           max: 100
           step: 1
           unit_of_measurement: "%"
+          mode: slider
+
+    min_off_time:
+      name: Mindest-Ausschaltzeit (Minuten)
+      description: >
+        Der Entfeuchter muss nach dem Abschalten mindestens diese Zeit warten,
+        bevor er wieder eingeschaltet werden kann. Schützt den Kompressor vor
+        Kurzzyklen und verbessert den Wirkungsgrad.
+        Empfehlung: 5 Minuten.
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 30
+          step: 1
+          unit_of_measurement: "min"
           mode: slider
 
     enable_outdoor_compare:
@@ -179,6 +217,8 @@ trigger:
       - !input outdoor_abs_sensor
       - !input outdoor_temp_sensor
       - !input indoor_temp_sensor
+  - platform: state
+    entity_id: !input window_door_sensors
   - platform: time_pattern
     minutes: "/5"
 
@@ -194,15 +234,18 @@ variables:
   target_rh: !input target_rh
   turn_off_rh: !input turn_off_rh
   critical_rh: !input critical_rh
+  min_off_time: !input min_off_time
   enable_outdoor_compare: !input enable_outdoor_compare
   max_temp_diff_for_ventilation: !input max_temp_diff_for_ventilation
 
   # Entity-IDs als Variablen (notwendig für states()-Aufruf in Jinja2-Templates)
+  _humidifier_id: !input humidifier_entity
   _indoor_rh_id: !input indoor_rh_sensor
   _indoor_abs_id: !input indoor_abs_sensor
   _indoor_temp_id: !input indoor_temp_sensor
   _outdoor_abs_id: !input outdoor_abs_sensor
   _outdoor_temp_id: !input outdoor_temp_sensor
+  _window_sensors: !input window_door_sensors
 
   # Sensor-Werte als Zahlen
   indoor_rh: "{{ states(_indoor_rh_id) | float(0) }}"
@@ -220,6 +263,27 @@ variables:
       {% else %}
         {{ n >= start_time or n <= end_time }}
       {% endif %}
+    {% endif %}
+
+  # Mindestens ein Fenster/Tür ist offen
+  # Leere Sensor-Liste → false (kein Sensor konfiguriert = kein Einfluss)
+  any_window_open: >
+    {% if _window_sensors | list | count == 0 %}
+      false
+    {% else %}
+      {{ expand(_window_sensors) | selectattr('state', 'eq', 'on') | list | count > 0 }}
+    {% endif %}
+
+  # Kompressor-Schutz: Entfeuchter darf erst wieder starten wenn Mindest-Ausschaltzeit abgelaufen
+  # Falls Entfeuchter läuft oder Zustand unbekannt: kein Einschränkung
+  compressor_ready: >
+    {% set h_state = states(_humidifier_id) %}
+    {% if h_state in ['unavailable', 'unknown'] %}
+      true
+    {% elif h_state != 'off' %}
+      true
+    {% else %}
+      {{ (now() - states[_humidifier_id].last_changed).total_seconds() >= min_off_time * 60 }}
     {% endif %}
 
   # Lüften ist sinnvoll wenn:
@@ -255,26 +319,40 @@ action:
               entity_id: !input humidifier_entity
 
       # Zweig 2: Notfall-Override → immer einschalten (Schimmelschutz)
-      # Ignoriert Außenluft-Vergleich und Außentemperatur
+      # Gilt auch bei offenen Fenstern – Kompressorschutz bleibt aktiv
       - conditions:
           - condition: template
-            value_template: "{{ indoor_rh >= critical_rh }}"
+            value_template: "{{ indoor_rh >= critical_rh and compressor_ready }}"
         sequence:
           - action: humidifier.turn_on
             target:
               entity_id: !input humidifier_entity
 
-      # Zweig 3: Normales Einschalten
+      # Zweig 3: Fenster/Tür offen → ausschalten
+      # Entfeuchten bei offenem Fenster verschwendet Energie
+      - conditions:
+          - condition: template
+            value_template: "{{ any_window_open }}"
+        sequence:
+          - action: humidifier.turn_off
+            target:
+              entity_id: !input humidifier_entity
+
+      # Zweig 4: Normales Einschalten
       # Bedingung: Innenfeuchte über Zielwert UND Lüften würde nicht helfen
+      #            UND Kompressor hat Mindest-Ausschaltzeit eingehalten
       - conditions:
           - condition: template
-            value_template: "{{ indoor_rh >= target_rh and not ventilation_preferred }}"
+            value_template: >
+              {{ indoor_rh >= target_rh
+                 and not ventilation_preferred
+                 and compressor_ready }}
         sequence:
           - action: humidifier.turn_on
             target:
               entity_id: !input humidifier_entity
 
-      # Zweig 4: Ausschalten (Hysterese)
+      # Zweig 5: Ausschalten (Hysterese)
       # Erst ausschalten wenn Feuchte deutlich unter Zielwert – verhindert Taktung
       - conditions:
           - condition: template
