@@ -1,7 +1,7 @@
 blueprint:
   name: "[OWN] Luftentfeuchter Steuerung"
   description: |
-    Version 2.4
+    Version 2.5
 
     Steuert den Luftentfeuchter dynamisch basierend auf physikalisch fundierter
     Entscheidungslogik:
@@ -46,13 +46,14 @@ blueprint:
               domain: sensor
 
     aussensensoren:
-      name: Außensensoren
+      name: Außensensoren (optional)
       icon: mdi:weather-partly-cloudy
       collapsed: true
       input:
         outdoor_rh_sensor:
           name: Außen – Relative Luftfeuchtigkeit
           description: Sensor für die relative Außenluftfeuchtigkeit (%)
+          default: ""
           selector:
             entity:
               filter:
@@ -61,14 +62,22 @@ blueprint:
 
         outdoor_abs_sensor:
           name: Außen – Absolute Luftfeuchtigkeit
-          description: Sensor für die absolute Außenluftfeuchtigkeit (g/m³)
+          description: >
+            Sensor für die absolute Außenluftfeuchtigkeit (g/m³).
+            Wird benötigt um zu entscheiden ob Lüften effizienter wäre
+            als der Entfeuchter. Ohne diesen Sensor läuft der Entfeuchter
+            rein basierend auf der Innenluftfeuchtigkeit.
+          default: ""
           selector:
             entity:
               domain: sensor
 
         outdoor_temp_sensor:
           name: Außen – Temperatur
-          description: Sensor für die Außentemperatur (°C)
+          description: >
+            Sensor für die Außentemperatur (°C).
+            Wird zusammen mit der absoluten Außenfeuchte benötigt.
+          default: ""
           selector:
             entity:
               filter:
@@ -208,7 +217,7 @@ blueprint:
             überschreitet. Dadurch wird die Wohnung durch Lüften niemals wärmer
             als diese Grenze. Beispiel: 23°C – bei 17°C außen und 15°C innen
             wird Lüften empfohlen (17 ≤ 23); bei 26°C außen nicht (26 > 23).
-          default: 23
+          default: 20
           selector:
             number:
               min: 15
@@ -251,8 +260,6 @@ trigger:
     entity_id:
       - !input indoor_rh_sensor
       - !input indoor_abs_sensor
-      - !input outdoor_abs_sensor
-      - !input outdoor_temp_sensor
   - platform: state
     entity_id: !input window_door_sensors
   - platform: state
@@ -337,23 +344,28 @@ variables:
     {% endif %}
 
   # Lüften ist sinnvoll wenn:
-  # 1. Jemand ist daheim (kann Fenster öffnen/schließen)
-  # 2. Außen-AH < Innen-AH (Außenluft trockener)
-  # 3. Außentemperatur ≤ max_comfort_temp (Lüften heizt Wohnung nicht über Wohlfühlgrenze)
-  # Bei unavailable/unknown Sensoren: sicher auf false setzen (Entfeuchter läuft)
+  # 1. Außensensoren konfiguriert (sonst kein Vergleich möglich)
+  # 2. Jemand ist daheim (kann Fenster öffnen/schließen)
+  # 3. Außen-AH < Innen-AH (Außenluft trockener)
+  # 4. Außentemperatur ≤ max_comfort_temp (Lüften heizt Wohnung nicht über Wohlfühlgrenze)
+  # Nicht konfigurierte oder unavailable Sensoren → false (Entfeuchter läuft)
   ventilation_preferred: >
-    {% set o_abs = states(_outdoor_abs_id) %}
-    {% set i_abs = states(_indoor_abs_id) %}
-    {% set o_temp = states(_outdoor_temp_id) %}
-    {% if o_abs in ['unavailable', 'unknown', 'none']
-       or i_abs in ['unavailable', 'unknown', 'none']
-       or o_temp in ['unavailable', 'unknown', 'none'] %}
+    {% if not _outdoor_abs_id or not _outdoor_temp_id %}
       false
     {% else %}
-      {{ someone_home
-         and enable_outdoor_compare
-         and o_abs | float < i_abs | float
-         and o_temp | float <= max_comfort_temp | float(23) }}
+      {% set o_abs = states(_outdoor_abs_id) %}
+      {% set i_abs = states(_indoor_abs_id) %}
+      {% set o_temp = states(_outdoor_temp_id) %}
+      {% if o_abs in ['unavailable', 'unknown', 'none']
+         or i_abs in ['unavailable', 'unknown', 'none']
+         or o_temp in ['unavailable', 'unknown', 'none'] %}
+        false
+      {% else %}
+        {{ someone_home
+           and enable_outdoor_compare
+           and o_abs | float < i_abs | float
+           and o_temp | float <= max_comfort_temp | float(20) }}
+      {% endif %}
     {% endif %}
 
 action:
