@@ -172,14 +172,16 @@ blueprint:
       description: >
         Lüften gilt nur dann als sinnvoll, wenn die Außentemperatur die
         Innentemperatur um maximal diesen Wert überschreitet.
-        Verhindert, dass im Sommer bei heißer Außenluft Lüften empfohlen wird,
-        obwohl die Außenluft absolut trockener ist.
-        Empfehlung: 2°C.
-      default: 2
+        Standard 0°C: Lüften wird nur empfohlen wenn es draußen gleich kalt
+        oder kälter ist als innen – verhindert, dass die Wohnung durch
+        wiederholtes Lüften schrittweise auf Außentemperatur aufheizt.
+        Negative Werte (z.B. -2) verlangen, dass es draußen mindestens so
+        viel kühler sein muss.
+      default: 0
       selector:
         number:
-          min: 0
-          max: 10
+          min: -5
+          max: 5
           step: 0.5
           unit_of_measurement: "°C"
           mode: slider
