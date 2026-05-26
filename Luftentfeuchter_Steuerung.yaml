@@ -1,7 +1,7 @@
 blueprint:
   name: "[OWN] Luftentfeuchter Steuerung"
   description: |
-    Version 2.2
+    Version 2.3
 
     Steuert den Luftentfeuchter dynamisch basierend auf physikalisch fundierter
     Entscheidungslogik:
@@ -24,176 +24,201 @@ blueprint:
         entity:
           domain: humidifier
 
-    # --- Innensensoren ---
-    indoor_rh_sensor:
-      name: Innen – Relative Luftfeuchtigkeit
-      description: Sensor für die relative Innenluftfeuchtigkeit (%)
-      selector:
-        entity:
-          filter:
-            - domain: sensor
-              device_class: humidity
+    innensensoren:
+      name: Innensensoren
+      icon: mdi:home-thermometer
+      collapsed: false
+      input:
+        indoor_rh_sensor:
+          name: Innen – Relative Luftfeuchtigkeit
+          description: Sensor für die relative Innenluftfeuchtigkeit (%)
+          selector:
+            entity:
+              filter:
+                - domain: sensor
+                  device_class: humidity
 
-    indoor_abs_sensor:
-      name: Innen – Absolute Luftfeuchtigkeit
-      description: Sensor für die absolute Innenluftfeuchtigkeit (g/m³)
-      selector:
-        entity:
-          domain: sensor
+        indoor_abs_sensor:
+          name: Innen – Absolute Luftfeuchtigkeit
+          description: Sensor für die absolute Innenluftfeuchtigkeit (g/m³)
+          selector:
+            entity:
+              domain: sensor
 
-    # --- Außensensoren ---
-    outdoor_rh_sensor:
-      name: Außen – Relative Luftfeuchtigkeit
-      description: Sensor für die relative Außenluftfeuchtigkeit (%)
-      selector:
-        entity:
-          filter:
-            - domain: sensor
-              device_class: humidity
+    aussensensoren:
+      name: Außensensoren
+      icon: mdi:weather-partly-cloudy
+      collapsed: false
+      input:
+        outdoor_rh_sensor:
+          name: Außen – Relative Luftfeuchtigkeit
+          description: Sensor für die relative Außenluftfeuchtigkeit (%)
+          selector:
+            entity:
+              filter:
+                - domain: sensor
+                  device_class: humidity
 
-    outdoor_abs_sensor:
-      name: Außen – Absolute Luftfeuchtigkeit
-      description: Sensor für die absolute Außenluftfeuchtigkeit (g/m³)
-      selector:
-        entity:
-          domain: sensor
+        outdoor_abs_sensor:
+          name: Außen – Absolute Luftfeuchtigkeit
+          description: Sensor für die absolute Außenluftfeuchtigkeit (g/m³)
+          selector:
+            entity:
+              domain: sensor
 
-    outdoor_temp_sensor:
-      name: Außen – Temperatur
-      description: Sensor für die Außentemperatur (°C)
-      selector:
-        entity:
-          filter:
-            - domain: sensor
-              device_class: temperature
+        outdoor_temp_sensor:
+          name: Außen – Temperatur
+          description: Sensor für die Außentemperatur (°C)
+          selector:
+            entity:
+              filter:
+                - domain: sensor
+                  device_class: temperature
 
-    # --- Fenster / Türen ---
-    window_door_sensors:
-      name: Fenster/Tür-Sensoren (optional)
-      description: >
-        Einer oder mehrere Fenster- bzw. Türsensoren. Solange mindestens einer
-        davon "offen" meldet, wird der Entfeuchter ausgeschaltet.
-        Ausnahme: Notfall-Override bei kritisch hoher Luftfeuchtigkeit.
-      default: []
-      selector:
-        entity:
-          multiple: true
-          filter:
-            - domain: binary_sensor
-              device_class: window
-            - domain: binary_sensor
-              device_class: door
-            - domain: binary_sensor
-              device_class: opening
+    fenster_tueren:
+      name: Fenster & Türen
+      icon: mdi:window-open
+      collapsed: true
+      input:
+        window_door_sensors:
+          name: Fenster/Tür-Sensoren (optional)
+          description: >
+            Einer oder mehrere Fenster- bzw. Türsensoren. Solange mindestens einer
+            davon "offen" meldet, wird der Entfeuchter ausgeschaltet.
+            Ausnahme: Notfall-Override bei kritisch hoher Luftfeuchtigkeit.
+          default: []
+          selector:
+            entity:
+              multiple: true
+              filter:
+                - domain: binary_sensor
+                  device_class: window
+                - domain: binary_sensor
+                  device_class: door
+                - domain: binary_sensor
+                  device_class: opening
 
-    # --- Schwellwerte ---
-    target_rh:
-      name: Ziel-Luftfeuchtigkeit (%)
-      description: >
-        Oberhalb dieses Wertes wird Entfeuchten angestrebt (Komfortschwelle).
-      default: 60
-      selector:
-        number:
-          min: 40
-          max: 90
-          step: 1
-          unit_of_measurement: "%"
-          mode: slider
+    schwellwerte:
+      name: Schwellwerte
+      icon: mdi:tune
+      collapsed: true
+      input:
+        target_rh:
+          name: Ziel-Luftfeuchtigkeit (%)
+          description: >
+            Oberhalb dieses Wertes wird Entfeuchten angestrebt (Komfortschwelle).
+          default: 60
+          selector:
+            number:
+              min: 40
+              max: 90
+              step: 1
+              unit_of_measurement: "%"
+              mode: slider
 
-    turn_off_rh:
-      name: Ausschaltwert – Hysterese (%)
-      description: >
-        Der Entfeuchter schaltet erst aus, wenn die Innenfeuchte diesen Wert
-        unterschreitet. Sollte kleiner als die Ziel-Luftfeuchtigkeit sein,
-        um Taktung zu vermeiden.
-      default: 55
-      selector:
-        number:
-          min: 30
-          max: 85
-          step: 1
-          unit_of_measurement: "%"
-          mode: slider
+        turn_off_rh:
+          name: Ausschaltwert – Hysterese (%)
+          description: >
+            Der Entfeuchter schaltet erst aus, wenn die Innenfeuchte diesen Wert
+            unterschreitet. Sollte kleiner als die Ziel-Luftfeuchtigkeit sein,
+            um Taktung zu vermeiden.
+          default: 55
+          selector:
+            number:
+              min: 30
+              max: 85
+              step: 1
+              unit_of_measurement: "%"
+              mode: slider
 
-    critical_rh:
-      name: Kritische Luftfeuchtigkeit – Notfall-Override (%)
-      description: >
-        Überschreitet die Innenfeuchte diesen Wert, wird der Entfeuchter
-        unabhängig vom Außenluft-Vergleich, der Außentemperatur und geöffneten
-        Fenstern eingeschaltet. (Schimmelschutz)
-      default: 70
-      selector:
-        number:
-          min: 50
-          max: 100
-          step: 1
-          unit_of_measurement: "%"
-          mode: slider
+        critical_rh:
+          name: Kritische Luftfeuchtigkeit – Notfall-Override (%)
+          description: >
+            Überschreitet die Innenfeuchte diesen Wert, wird der Entfeuchter
+            unabhängig vom Außenluft-Vergleich, der Außentemperatur und geöffneten
+            Fenstern eingeschaltet. (Schimmelschutz)
+          default: 70
+          selector:
+            number:
+              min: 50
+              max: 100
+              step: 1
+              unit_of_measurement: "%"
+              mode: slider
 
-    min_off_time:
-      name: Mindest-Ausschaltzeit (Minuten)
-      description: >
-        Der Entfeuchter muss nach dem Abschalten mindestens diese Zeit warten,
-        bevor er wieder eingeschaltet werden kann. Schützt den Kompressor vor
-        Kurzzyklen und verbessert den Wirkungsgrad.
-        Empfehlung: 5 Minuten.
-      default: 5
-      selector:
-        number:
-          min: 1
-          max: 30
-          step: 1
-          unit_of_measurement: "min"
-          mode: slider
+        min_off_time:
+          name: Mindest-Ausschaltzeit (Minuten)
+          description: >
+            Der Entfeuchter muss nach dem Abschalten mindestens diese Zeit warten,
+            bevor er wieder eingeschaltet werden kann. Schützt den Kompressor vor
+            Kurzzyklen und verbessert den Wirkungsgrad.
+            Empfehlung: 5 Minuten.
+          default: 5
+          selector:
+            number:
+              min: 1
+              max: 30
+              step: 1
+              unit_of_measurement: "min"
+              mode: slider
 
-    enable_outdoor_compare:
-      name: Außenluft-Vergleich aktivieren?
-      description: >
-        Wenn aktiviert: Der Entfeuchter bleibt aus, solange Lüften sinnvoller
-        wäre (absolute Außenfeuchte kleiner als innen UND Außentemperatur
-        unterhalb der Wohlfühltemperatur). Wenn deaktiviert: nur auf
-        Innenfeuchte reagieren.
-      default: true
-      selector:
-        boolean:
+    lueftungslogik:
+      name: Lüftungslogik
+      icon: mdi:air-filter
+      collapsed: true
+      input:
+        enable_outdoor_compare:
+          name: Außenluft-Vergleich aktivieren?
+          description: >
+            Wenn aktiviert: Der Entfeuchter bleibt aus, solange Lüften sinnvoller
+            wäre (absolute Außenfeuchte kleiner als innen UND Außentemperatur
+            unterhalb der Wohlfühltemperatur). Wenn deaktiviert: nur auf
+            Innenfeuchte reagieren.
+          default: true
+          selector:
+            boolean:
 
-    max_comfort_temp:
-      name: Maximale Wohlfühltemperatur (°C)
-      description: >
-        Lüften wird nur empfohlen, wenn die Außentemperatur diesen Wert nicht
-        überschreitet. Dadurch wird die Wohnung durch Lüften niemals wärmer
-        als diese Grenze. Beispiel: 23°C – bei 17°C außen und 15°C innen
-        wird Lüften empfohlen (17 ≤ 23); bei 26°C außen nicht (26 > 23).
-      default: 23
-      selector:
-        number:
-          min: 15
-          max: 30
-          step: 0.5
-          unit_of_measurement: "°C"
-          mode: slider
+        max_comfort_temp:
+          name: Maximale Wohlfühltemperatur (°C)
+          description: >
+            Lüften wird nur empfohlen, wenn die Außentemperatur diesen Wert nicht
+            überschreitet. Dadurch wird die Wohnung durch Lüften niemals wärmer
+            als diese Grenze. Beispiel: 23°C – bei 17°C außen und 15°C innen
+            wird Lüften empfohlen (17 ≤ 23); bei 26°C außen nicht (26 > 23).
+          default: 23
+          selector:
+            number:
+              min: 15
+              max: 30
+              step: 0.5
+              unit_of_measurement: "°C"
+              mode: slider
 
-    # --- Zeitfenster ---
-    enable_time_check:
-      name: Zeitfenster aktiv?
-      description: >
-        Wenn aktiviert, wird nur zwischen der Start- und Endzeit entfeuchtet.
-        Außerhalb des Zeitfensters wird der Entfeuchter ausgeschaltet.
-      default: false
-      selector:
-        boolean:
+    zeitfenster:
+      name: Zeitfenster
+      icon: mdi:clock-outline
+      collapsed: true
+      input:
+        enable_time_check:
+          name: Zeitfenster aktiv?
+          description: >
+            Wenn aktiviert, wird nur zwischen der Start- und Endzeit entfeuchtet.
+            Außerhalb des Zeitfensters wird der Entfeuchter ausgeschaltet.
+          default: false
+          selector:
+            boolean:
 
-    start_time:
-      name: Startzeit
-      default: "09:00:00"
-      selector:
-        time:
+        start_time:
+          name: Startzeit
+          default: "09:00:00"
+          selector:
+            time:
 
-    end_time:
-      name: Endzeit
-      default: "22:00:00"
-      selector:
-        time:
+        end_time:
+          name: Endzeit
+          default: "22:00:00"
+          selector:
+            time:
 
 mode: single
 max_exceeded: silent
