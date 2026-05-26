@@ -27,7 +27,7 @@ blueprint:
     innensensoren:
       name: Innensensoren
       icon: mdi:home-thermometer
-      collapsed: false
+      collapsed: true
       input:
         indoor_rh_sensor:
           name: Innen – Relative Luftfeuchtigkeit
@@ -48,7 +48,7 @@ blueprint:
     aussensensoren:
       name: Außensensoren
       icon: mdi:weather-partly-cloudy
-      collapsed: false
+      collapsed: true
       input:
         outdoor_rh_sensor:
           name: Außen – Relative Luftfeuchtigkeit
