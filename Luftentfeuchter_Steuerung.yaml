@@ -19,7 +19,7 @@ blueprint:
   input:
     humidifier_entity:
       name: Luftentfeuchter
-      description: Wähle den Luftentfeuchter (Domain: humidifier)
+      description: "Wähle den Luftentfeuchter (Domain: humidifier)"
       selector:
         entity:
           domain: humidifier
