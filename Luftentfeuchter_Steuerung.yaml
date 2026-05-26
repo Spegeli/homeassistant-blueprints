@@ -1,7 +1,7 @@
 blueprint:
   name: "[OWN] Luftentfeuchter Steuerung"
   description: |
-    Version 2.3
+    Version 2.4
 
     Steuert den Luftentfeuchter dynamisch basierend auf physikalisch fundierter
     Entscheidungslogik:
@@ -162,6 +162,29 @@ blueprint:
               unit_of_measurement: "min"
               mode: slider
 
+    anwesenheit:
+      name: Anwesenheit
+      icon: mdi:account-multiple
+      collapsed: true
+      input:
+        presence_sensors:
+          name: Anwesenheitssensoren (optional)
+          description: >
+            Eine oder mehrere Personen (person-Entität) oder Präsenzsensoren
+            (binary_sensor). Solange niemand als anwesend erkannt wird, wird
+            Lüften nicht empfohlen und der Entfeuchter läuft stattdessen.
+            Leer lassen = Anwesenheit wird nicht berücksichtigt.
+          default: []
+          selector:
+            entity:
+              multiple: true
+              filter:
+                - domain: person
+                - domain: binary_sensor
+                  device_class: presence
+                - domain: binary_sensor
+                  device_class: occupancy
+
     lueftungslogik:
       name: Lüftungslogik
       icon: mdi:air-filter
@@ -232,6 +255,8 @@ trigger:
       - !input outdoor_temp_sensor
   - platform: state
     entity_id: !input window_door_sensors
+  - platform: state
+    entity_id: !input presence_sensors
   - platform: time_pattern
     minutes: "/5"
 
@@ -258,6 +283,7 @@ variables:
   _outdoor_abs_id: !input outdoor_abs_sensor
   _outdoor_temp_id: !input outdoor_temp_sensor
   _window_sensors: !input window_door_sensors
+  _presence_sensors: !input presence_sensors
 
   # Sensor-Werte als Zahlen
   indoor_rh: "{{ states(_indoor_rh_id) | float(0) }}"
@@ -275,6 +301,18 @@ variables:
       {% else %}
         {{ n >= start_time or n <= end_time }}
       {% endif %}
+    {% endif %}
+
+  # Mindestens eine Person ist daheim
+  # Leere Sensor-Liste → true (kein Sensor konfiguriert = immer als anwesend annehmen)
+  # Unterstützt person-Entitäten (state: "home") und binary_sensor (state: "on")
+  someone_home: >
+    {% if _presence_sensors | list | count == 0 %}
+      true
+    {% else %}
+      {{ expand(_presence_sensors)
+         | selectattr('state', 'in', ['home', 'on'])
+         | list | count > 0 }}
     {% endif %}
 
   # Mindestens ein Fenster/Tür ist offen
@@ -299,8 +337,9 @@ variables:
     {% endif %}
 
   # Lüften ist sinnvoll wenn:
-  # 1. Außen-AH < Innen-AH (Außenluft trockener)
-  # 2. Außentemperatur ≤ max_comfort_temp (Lüften heizt Wohnung nicht über Wohlfühlgrenze)
+  # 1. Jemand ist daheim (kann Fenster öffnen/schließen)
+  # 2. Außen-AH < Innen-AH (Außenluft trockener)
+  # 3. Außentemperatur ≤ max_comfort_temp (Lüften heizt Wohnung nicht über Wohlfühlgrenze)
   # Bei unavailable/unknown Sensoren: sicher auf false setzen (Entfeuchter läuft)
   ventilation_preferred: >
     {% set o_abs = states(_outdoor_abs_id) %}
@@ -311,7 +350,8 @@ variables:
        or o_temp in ['unavailable', 'unknown', 'none'] %}
       false
     {% else %}
-      {{ enable_outdoor_compare
+      {{ someone_home
+         and enable_outdoor_compare
          and o_abs | float < i_abs | float
          and o_temp | float <= max_comfort_temp | float(23) }}
     {% endif %}
