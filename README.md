@@ -1,19 +1,19 @@
 # Home Assistant Blueprints
 
-Eine Sammlung von Home Assistant Blueprints für Automationen.
+A collection of Home Assistant blueprints for automations.
 
 ---
 
-## Kategorien
+## Categories
 
-| Ordner | Beschreibung |
+| Folder | Description |
 |---|---|
-| [`climate/`](./climate) | Temperatur, Luftfeuchtigkeit, Heizung, Klimaanlage |
-| [`lighting/`](./lighting) | Licht-Automationen und Szenen |
-| [`security/`](./security) | Alarmanlagen, Schlösser, Kameras |
-| [`presence/`](./presence) | Anwesenheitserkennung, An-/Abwesenheitsroutinen |
-| [`energy/`](./energy) | Stromverbrauch, Solar, Lastmanagement |
-| [`notifications/`](./notifications) | Benachrichtigungen und Erinnerungen |
+| [`climate/`](./climate) | Temperature, humidity, dehumidifiers, heating, air conditioning |
+| [`lighting/`](./lighting) | Light automations and scenes |
+| [`security/`](./security) | Alarms, locks, cameras |
+| [`presence/`](./presence) | Presence detection, arrival/departure routines |
+| [`energy/`](./energy) | Power consumption, solar, load management |
+| [`notifications/`](./notifications) | Alerts and reminders |
 
 ---
 
@@ -21,33 +21,33 @@ Eine Sammlung von Home Assistant Blueprints für Automationen.
 
 ### 🌡 Climate
 
-#### Luftentfeuchter Steuerung
+#### Smart Dehumidifier Control
 
-Steuert einen Luftentfeuchter dynamisch basierend auf physikalisch fundierter Entscheidungslogik – statt fester Schwellwerte.
+Controls a dehumidifier dynamically using physically sound decision logic instead of fixed thresholds.
 
-**Funktionen:**
-- Vergleicht absolute Außen- und Innenluftfeuchtigkeit: Wenn Lüften effizienter wäre, bleibt der Entfeuchter aus
-- Berücksichtigt die Außentemperatur: Kein Lüften wenn die Wohnung dadurch über die eingestellte Wohlfühltemperatur aufgeheizt würde
-- Optionale Mindest-AH-Differenz: Entfeuchter läuft nur wenn Innenluft deutlich feuchter als Außenluft ist
-- Optionale Fenster-/Türsensoren: Entfeuchter schaltet ab wenn ein Fenster geöffnet wird
-- Optionale Anwesenheitserkennung: Bei Abwesenheit wird Lüften ignoriert und der Entfeuchter übernimmt
-- Kompressorschutz durch konfigurierbare Mindest-Ausschaltzeit
-- Notfall-Override bei kritisch hoher Luftfeuchtigkeit (Schimmelschutz)
-- Hysterese verhindert Taktung
-- Optionales Zeitfenster
+**Features:**
+- Compares indoor and outdoor absolute humidity: if ventilating would be more efficient, the dehumidifier stays off
+- Considers outdoor temperature: no ventilation recommendation if it would overheat the apartment
+- Optional minimum AH differential: dehumidifier only runs when indoor air is significantly more humid than outdoor
+- Optional window/door sensors: dehumidifier turns off automatically when a window is opened
+- Optional presence detection: when nobody is home, ventilation is ignored and the dehumidifier takes over
+- Compressor protection via configurable minimum off time
+- Emergency override at critical indoor humidity (mold protection)
+- Hysteresis prevents rapid cycling
+- Optional active time window
 
-**Voraussetzungen:**
-- Home Assistant 2024.6 oder neuer
-- Sensor für relative Innenluftfeuchtigkeit (Pflicht)
-- Sensor für absolute Innenluftfeuchtigkeit (Pflicht)
-- Sensoren für Außenluft optional (absolute Feuchte + Temperatur)
+**Requirements:**
+- Home Assistant 2024.6 or newer
+- Indoor relative humidity sensor (required)
+- Indoor absolute humidity sensor (required)
+- Outdoor sensors optional (absolute humidity + temperature)
 
-[![Blueprint importieren](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https://raw.githubusercontent.com/Spegeli/homeassistant-blueprints/main/climate/Luftentfeuchter_Steuerung.yaml)
+[![Import Blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https://raw.githubusercontent.com/Spegeli/homeassistant-blueprints/main/climate/dehumidifier_control.yaml)
 
 ---
 
 ## Installation
 
-1. Auf den **„Blueprint importieren"**-Button beim gewünschten Blueprint klicken
-2. Im Home Assistant Dialog bestätigen
-3. Automation auf Basis des Blueprints erstellen und Sensoren/Geräte zuweisen
+1. Click the **"Import Blueprint"** button on the desired blueprint
+2. Confirm in the Home Assistant dialog
+3. Create an automation based on the blueprint and assign your sensors and devices

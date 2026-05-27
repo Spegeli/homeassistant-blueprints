@@ -1,37 +1,41 @@
 blueprint:
-  name: "[OWN] Luftentfeuchter Steuerung"
+  name: "Smart Dehumidifier Control"
   description: |
     Version 2.6
 
-    Steuert den Luftentfeuchter dynamisch basierend auf physikalisch fundierter
-    Entscheidungslogik:
+    Controls a dehumidifier dynamically using physically sound decision logic
+    instead of fixed thresholds:
 
-    - Vergleicht absolute Außen- und Innenluftfeuchtigkeit:
-      Wenn Lüften effizienter wäre (Außenluft trockener UND Außentemperatur
-      unterhalb der konfigurierten Wohlfühltemperatur), bleibt der Entfeuchter aus.
-    - Fenster/Tür-Sensoren: Entfeuchter schaltet automatisch ab wenn ein
-      Fenster oder eine Tür geöffnet wird (mehrere Sensoren möglich).
-    - Mindest-Ausschaltzeit schützt den Kompressor vor Kurzzyklen.
-    - Notfall-Override bei kritisch hoher Innenfeuchte (Schimmelschutz).
-    - Hysterese verhindert Taktung.
-    - Optional: nur innerhalb eines Zeitfensters aktiv.
+    - Compares indoor and outdoor absolute humidity: if ventilating would be
+      more efficient (outdoor air drier AND outdoor temperature below the
+      configured comfort limit), the dehumidifier stays off.
+    - Optional minimum AH differential: dehumidifier only runs when indoor
+      absolute humidity exceeds outdoor by a configurable margin.
+    - Optional window/door sensors: dehumidifier turns off automatically
+      when a window or door is opened.
+    - Optional presence detection: when nobody is home, ventilation is
+      ignored and the dehumidifier takes over.
+    - Minimum off-time protects the compressor from short cycling.
+    - Emergency override at critical indoor humidity (mold protection).
+    - Hysteresis prevents rapid cycling.
+    - Optional active time window.
   domain: automation
   input:
     humidifier_entity:
-      name: Luftentfeuchter
-      description: "Wähle den Luftentfeuchter (Domain: humidifier)"
+      name: Dehumidifier
+      description: "Select the dehumidifier entity (domain: humidifier)"
       selector:
         entity:
           domain: humidifier
 
-    innensensoren:
-      name: Innensensoren
+    indoor_sensors:
+      name: Indoor Sensors
       icon: mdi:home-thermometer
       collapsed: true
       input:
         indoor_rh_sensor:
-          name: Innen – Relative Luftfeuchtigkeit
-          description: Sensor für die relative Innenluftfeuchtigkeit (%)
+          name: Indoor – Relative Humidity
+          description: Sensor for indoor relative humidity (%)
           selector:
             entity:
               filter:
@@ -39,20 +43,20 @@ blueprint:
                   device_class: humidity
 
         indoor_abs_sensor:
-          name: Innen – Absolute Luftfeuchtigkeit
-          description: Sensor für die absolute Innenluftfeuchtigkeit (g/m³)
+          name: Indoor – Absolute Humidity
+          description: Sensor for indoor absolute humidity (g/m³)
           selector:
             entity:
               domain: sensor
 
-    aussensensoren:
-      name: Außensensoren (optional)
+    outdoor_sensors:
+      name: Outdoor Sensors (optional)
       icon: mdi:weather-partly-cloudy
       collapsed: true
       input:
         outdoor_rh_sensor:
-          name: Außen – Relative Luftfeuchtigkeit
-          description: Sensor für die relative Außenluftfeuchtigkeit (%)
+          name: Outdoor – Relative Humidity
+          description: Sensor for outdoor relative humidity (%)
           default: ""
           selector:
             entity:
@@ -61,22 +65,22 @@ blueprint:
                   device_class: humidity
 
         outdoor_abs_sensor:
-          name: Außen – Absolute Luftfeuchtigkeit
+          name: Outdoor – Absolute Humidity
           description: >
-            Sensor für die absolute Außenluftfeuchtigkeit (g/m³).
-            Wird benötigt um zu entscheiden ob Lüften effizienter wäre
-            als der Entfeuchter. Ohne diesen Sensor läuft der Entfeuchter
-            rein basierend auf der Innenluftfeuchtigkeit.
+            Sensor for outdoor absolute humidity (g/m³).
+            Required to determine whether ventilating would be more efficient
+            than running the dehumidifier. Without this sensor the dehumidifier
+            operates based on indoor humidity only.
           default: ""
           selector:
             entity:
               domain: sensor
 
         outdoor_temp_sensor:
-          name: Außen – Temperatur
+          name: Outdoor – Temperature
           description: >
-            Sensor für die Außentemperatur (°C).
-            Wird zusammen mit der absoluten Außenfeuchte benötigt.
+            Sensor for outdoor temperature (°C).
+            Required together with the outdoor absolute humidity sensor.
           default: ""
           selector:
             entity:
@@ -84,17 +88,17 @@ blueprint:
                 - domain: sensor
                   device_class: temperature
 
-    fenster_tueren:
-      name: Fenster & Türen
+    windows_doors:
+      name: Windows & Doors
       icon: mdi:window-open
       collapsed: true
       input:
         window_door_sensors:
-          name: Fenster/Tür-Sensoren (optional)
+          name: Window/Door Sensors (optional)
           description: >
-            Einer oder mehrere Fenster- bzw. Türsensoren. Solange mindestens einer
-            davon "offen" meldet, wird der Entfeuchter ausgeschaltet.
-            Ausnahme: Notfall-Override bei kritisch hoher Luftfeuchtigkeit.
+            One or more window or door sensors. While at least one reports
+            "open", the dehumidifier is turned off.
+            Exception: emergency override at critical humidity.
           default: []
           selector:
             entity:
@@ -107,15 +111,15 @@ blueprint:
                 - domain: binary_sensor
                   device_class: opening
 
-    schwellwerte:
-      name: Schwellwerte
+    thresholds:
+      name: Thresholds
       icon: mdi:tune
       collapsed: true
       input:
         target_rh:
-          name: Ziel-Luftfeuchtigkeit (%)
+          name: Target Humidity (%)
           description: >
-            Oberhalb dieses Wertes wird Entfeuchten angestrebt (Komfortschwelle).
+            Dehumidification is triggered above this value (comfort threshold).
           default: 55
           selector:
             number:
@@ -126,11 +130,11 @@ blueprint:
               mode: slider
 
         turn_off_rh:
-          name: Ausschaltwert – Hysterese (%)
+          name: Turn-off Threshold – Hysteresis (%)
           description: >
-            Der Entfeuchter schaltet erst aus, wenn die Innenfeuchte diesen Wert
-            unterschreitet. Sollte kleiner als die Ziel-Luftfeuchtigkeit sein,
-            um Taktung zu vermeiden.
+            The dehumidifier only turns off once indoor humidity drops below
+            this value. Must be lower than the target humidity to prevent
+            rapid cycling.
           default: 50
           selector:
             number:
@@ -141,11 +145,11 @@ blueprint:
               mode: slider
 
         critical_rh:
-          name: Kritische Luftfeuchtigkeit – Notfall-Override (%)
+          name: Critical Humidity – Emergency Override (%)
           description: >
-            Überschreitet die Innenfeuchte diesen Wert, wird der Entfeuchter
-            unabhängig vom Außenluft-Vergleich, der Außentemperatur und geöffneten
-            Fenstern eingeschaltet. (Schimmelschutz)
+            When indoor humidity exceeds this value, the dehumidifier turns on
+            regardless of outdoor conditions, open windows, or presence.
+            (Mold protection)
           default: 60
           selector:
             number:
@@ -156,12 +160,11 @@ blueprint:
               mode: slider
 
         min_off_time:
-          name: Mindest-Ausschaltzeit (Minuten)
+          name: Minimum Off Time (minutes)
           description: >
-            Der Entfeuchter muss nach dem Abschalten mindestens diese Zeit warten,
-            bevor er wieder eingeschaltet werden kann. Schützt den Kompressor vor
-            Kurzzyklen und verbessert den Wirkungsgrad.
-            Empfehlung: 5 Minuten.
+            The dehumidifier must remain off for at least this duration before
+            it can turn on again. Protects the compressor from short cycling
+            and improves efficiency. Recommended: 5 minutes.
           default: 5
           selector:
             number:
@@ -171,18 +174,18 @@ blueprint:
               unit_of_measurement: "min"
               mode: slider
 
-    anwesenheit:
-      name: Anwesenheit
+    presence:
+      name: Presence
       icon: mdi:account-multiple
       collapsed: true
       input:
         presence_sensors:
-          name: Anwesenheitssensoren (optional)
+          name: Presence Sensors (optional)
           description: >
-            Eine oder mehrere Personen (person-Entität) oder Präsenzsensoren
-            (binary_sensor). Solange niemand als anwesend erkannt wird, wird
-            Lüften nicht empfohlen und der Entfeuchter läuft stattdessen.
-            Leer lassen = Anwesenheit wird nicht berücksichtigt.
+            One or more person entities or presence/occupancy binary sensors.
+            When nobody is detected as home, ventilation is not recommended
+            and the dehumidifier runs instead.
+            Leave empty to disable presence detection.
           default: []
           selector:
             entity:
@@ -194,31 +197,31 @@ blueprint:
                 - domain: binary_sensor
                   device_class: occupancy
 
-    lueftungslogik:
-      name: Lüftungslogik
+    ventilation_logic:
+      name: Ventilation Logic
       icon: mdi:air-filter
       collapsed: true
       input:
         enable_outdoor_compare:
-          name: Außenluft-Vergleich aktivieren?
+          name: Enable Outdoor Air Comparison?
           description: >
-            Wenn aktiviert: Der Entfeuchter bleibt aus, solange Lüften sinnvoller
-            wäre (absolute Außenfeuchte kleiner als innen UND Außentemperatur
-            unterhalb der Wohlfühltemperatur). Wenn deaktiviert: nur auf
-            Innenfeuchte reagieren.
+            When enabled: the dehumidifier stays off while ventilating would
+            be more efficient (outdoor absolute humidity lower than indoor AND
+            outdoor temperature below the comfort limit).
+            When disabled: react to indoor humidity only.
           default: true
           selector:
             boolean:
 
         min_ah_diff:
-          name: Mindest-AH-Differenz Innen/Außen (g/m³)
+          name: Minimum Indoor/Outdoor AH Differential (g/m³)
           description: >
-            Der Entfeuchter läuft im Normalbetrieb nur wenn die absolute
-            Innenluftfeuchtigkeit mindestens diesen Wert über der absoluten
-            Außenluftfeuchtigkeit liegt. Verhindert sinnlosen Betrieb wenn
-            Innen- und Außenluft nahezu gleich feucht sind und der Entfeuchter
-            gegen den ständigen Außenluft-Eintrag ankämpfen würde.
-            0 = deaktiviert (kein Mindestabstand erforderlich).
+            In normal operation the dehumidifier only runs when indoor absolute
+            humidity exceeds outdoor absolute humidity by at least this value.
+            Prevents pointless operation when indoor and outdoor humidity are
+            nearly equal and the dehumidifier would fight constant outdoor
+            air infiltration.
+            0 = disabled (no minimum differential required).
           default: 0
           selector:
             number:
@@ -229,12 +232,12 @@ blueprint:
               mode: slider
 
         max_comfort_temp:
-          name: Maximale Wohlfühltemperatur (°C)
+          name: Maximum Comfort Temperature (°C)
           description: >
-            Lüften wird nur empfohlen, wenn die Außentemperatur diesen Wert nicht
-            überschreitet. Dadurch wird die Wohnung durch Lüften niemals wärmer
-            als diese Grenze. Beispiel: 23°C – bei 17°C außen und 15°C innen
-            wird Lüften empfohlen (17 ≤ 23); bei 26°C außen nicht (26 > 23).
+            Ventilation is only recommended when the outdoor temperature does
+            not exceed this value. Ensures the apartment never heats above
+            this limit through ventilation. Example: 20°C – ventilation is
+            recommended at 17°C outside (17 ≤ 20) but not at 23°C (23 > 20).
           default: 20
           selector:
             number:
@@ -244,28 +247,28 @@ blueprint:
               unit_of_measurement: "°C"
               mode: slider
 
-    zeitfenster:
-      name: Zeitfenster
+    time_window:
+      name: Time Window
       icon: mdi:clock-outline
       collapsed: true
       input:
         enable_time_check:
-          name: Zeitfenster aktiv?
+          name: Enable Time Window?
           description: >
-            Wenn aktiviert, wird nur zwischen der Start- und Endzeit entfeuchtet.
-            Außerhalb des Zeitfensters wird der Entfeuchter ausgeschaltet.
+            When enabled, dehumidification only runs between the start and
+            end time. Outside this window the dehumidifier is turned off.
           default: false
           selector:
             boolean:
 
         start_time:
-          name: Startzeit
+          name: Start Time
           default: "09:00:00"
           selector:
             time:
 
         end_time:
-          name: Endzeit
+          name: End Time
           default: "22:00:00"
           selector:
             time:
@@ -288,12 +291,12 @@ trigger:
 condition: []
 
 variables:
-  # Zeitfenster-Inputs
+  # Time window inputs
   enable_time_check: !input enable_time_check
   start_time: !input start_time
   end_time: !input end_time
 
-  # Schwellwert-Inputs
+  # Threshold inputs
   target_rh: !input target_rh
   turn_off_rh: !input turn_off_rh
   critical_rh: !input critical_rh
@@ -302,7 +305,7 @@ variables:
   min_ah_diff: !input min_ah_diff
   max_comfort_temp: !input max_comfort_temp
 
-  # Entity-IDs als Variablen (notwendig für states()-Aufruf in Jinja2-Templates)
+  # Entity IDs as variables (required for states() calls inside Jinja2 templates)
   _humidifier_id: !input humidifier_entity
   _indoor_rh_id: !input indoor_rh_sensor
   _indoor_abs_id: !input indoor_abs_sensor
@@ -311,12 +314,12 @@ variables:
   _window_sensors: !input window_door_sensors
   _presence_sensors: !input presence_sensors
 
-  # Sensor-Werte als Zahlen
+  # Sensor values as numbers
   indoor_rh: "{{ states(_indoor_rh_id) | float(0) }}"
   indoor_abs: "{{ states(_indoor_abs_id) | float(0) }}"
   outdoor_abs: "{{ states(_outdoor_abs_id) | float(0) }}"
 
-  # Zeitfenster-Prüfung (unterstützt auch Zeitfenster über Mitternacht)
+  # Time window check (supports windows spanning midnight)
   in_time_window: >
     {% if not enable_time_check %}
       true
@@ -329,9 +332,9 @@ variables:
       {% endif %}
     {% endif %}
 
-  # Mindestens eine Person ist daheim
-  # Leere Sensor-Liste → true (kein Sensor konfiguriert = immer als anwesend annehmen)
-  # Unterstützt person-Entitäten (state: "home") und binary_sensor (state: "on")
+  # At least one person is home
+  # Empty list → true (no sensor configured = always assume someone is home)
+  # Supports person entities (state: "home") and binary sensors (state: "on")
   someone_home: >
     {% if _presence_sensors | list | count == 0 %}
       true
@@ -341,8 +344,8 @@ variables:
          | list | count > 0 }}
     {% endif %}
 
-  # AH-Differenz-Check: Innen muss mindestens min_ah_diff g/m³ feuchter sein als außen
-  # Bei min_ah_diff=0 oder nicht konfigurierten Außensensoren: immer true (Regel deaktiviert)
+  # AH differential check: indoor must exceed outdoor by at least min_ah_diff g/m³
+  # Disabled (always true) when min_ah_diff=0 or outdoor sensors not configured
   ah_diff_ok: >
     {% if min_ah_diff | float(0) == 0 or not _outdoor_abs_id %}
       true
@@ -350,8 +353,8 @@ variables:
       {{ indoor_abs | float >= outdoor_abs | float + min_ah_diff | float }}
     {% endif %}
 
-  # Mindestens ein Fenster/Tür ist offen
-  # Leere Sensor-Liste → false (kein Sensor konfiguriert = kein Einfluss)
+  # At least one window or door is open
+  # Empty list → false (no sensor configured = no effect)
   any_window_open: >
     {% if _window_sensors | list | count == 0 %}
       false
@@ -359,8 +362,8 @@ variables:
       {{ expand(_window_sensors) | selectattr('state', 'eq', 'on') | list | count > 0 }}
     {% endif %}
 
-  # Kompressor-Schutz: Entfeuchter darf erst wieder starten wenn Mindest-Ausschaltzeit abgelaufen
-  # Falls Entfeuchter läuft oder Zustand unbekannt: keine Einschränkung
+  # Compressor protection: dehumidifier may only restart after minimum off time has elapsed
+  # No restriction if currently running or state is unavailable/unknown
   compressor_ready: >
     {% set h_state = states(_humidifier_id) %}
     {% if h_state in ['unavailable', 'unknown'] %}
@@ -371,12 +374,12 @@ variables:
       {{ (now() - states[_humidifier_id].last_changed).total_seconds() >= min_off_time * 60 }}
     {% endif %}
 
-  # Lüften ist sinnvoll wenn:
-  # 1. Außensensoren konfiguriert (sonst kein Vergleich möglich)
-  # 2. Jemand ist daheim (kann Fenster öffnen/schließen)
-  # 3. Außen-AH < Innen-AH (Außenluft trockener)
-  # 4. Außentemperatur ≤ max_comfort_temp (Lüften heizt Wohnung nicht über Wohlfühlgrenze)
-  # Nicht konfigurierte oder unavailable Sensoren → false (Entfeuchter läuft)
+  # Ventilation is preferred when all of the following are true:
+  # 1. Outdoor sensors are configured (otherwise no comparison possible)
+  # 2. Someone is home (can open/close windows)
+  # 3. Outdoor AH < indoor AH (outdoor air is drier)
+  # 4. Outdoor temperature ≤ max_comfort_temp (ventilating won't overheat the apartment)
+  # Unconfigured or unavailable sensors → false (dehumidifier runs as fallback)
   ventilation_preferred: >
     {% if not _outdoor_abs_id or not _outdoor_temp_id %}
       false
@@ -399,7 +402,7 @@ variables:
 action:
   - choose:
 
-      # Zweig 1: Außerhalb Zeitfenster → ausschalten
+      # Branch 1: Outside time window → turn off
       - conditions:
           - condition: template
             value_template: "{{ enable_time_check and not in_time_window }}"
@@ -408,8 +411,8 @@ action:
             target:
               entity_id: !input humidifier_entity
 
-      # Zweig 2: Notfall-Override → immer einschalten (Schimmelschutz)
-      # Gilt auch bei offenen Fenstern – Kompressorschutz bleibt aktiv
+      # Branch 2: Emergency override → always turn on (mold protection)
+      # Applies even with open windows – compressor protection remains active
       - conditions:
           - condition: template
             value_template: "{{ indoor_rh >= critical_rh and compressor_ready }}"
@@ -418,8 +421,8 @@ action:
             target:
               entity_id: !input humidifier_entity
 
-      # Zweig 3: Fenster/Tür offen → ausschalten
-      # Entfeuchten bei offenem Fenster verschwendet Energie
+      # Branch 3: Window or door open → turn off
+      # Running the dehumidifier with an open window wastes energy
       - conditions:
           - condition: template
             value_template: "{{ any_window_open }}"
@@ -428,9 +431,9 @@ action:
             target:
               entity_id: !input humidifier_entity
 
-      # Zweig 4: Normales Einschalten
-      # Bedingung: Innenfeuchte über Zielwert UND Lüften würde nicht helfen
-      #            UND Kompressor hat Mindest-Ausschaltzeit eingehalten
+      # Branch 4: Normal turn-on
+      # Conditions: indoor humidity above target AND ventilation would not help
+      #             AND AH differential sufficient AND compressor ready
       - conditions:
           - condition: template
             value_template: >
@@ -443,8 +446,8 @@ action:
             target:
               entity_id: !input humidifier_entity
 
-      # Zweig 5: Ausschalten (Hysterese)
-      # Erst ausschalten wenn Feuchte deutlich unter Zielwert – verhindert Taktung
+      # Branch 5: Turn off (hysteresis)
+      # Only turns off once humidity drops well below the target threshold
       - conditions:
           - condition: template
             value_template: "{{ indoor_rh < turn_off_rh }}"
@@ -453,6 +456,6 @@ action:
             target:
               entity_id: !input humidifier_entity
 
-    # Hysterese-Zone (zwischen turn_off_rh und target_rh):
-    # Kein Zweig greift → keine Aktion → Gerät bleibt im aktuellen Zustand
+    # Hysteresis zone (between turn_off_rh and target_rh):
+    # No branch matches → no action → device stays in its current state
     default: []
