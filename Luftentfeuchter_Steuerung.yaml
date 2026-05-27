@@ -1,7 +1,7 @@
 blueprint:
   name: "[OWN] Luftentfeuchter Steuerung"
   description: |
-    Version 2.5
+    Version 2.6
 
     Steuert den Luftentfeuchter dynamisch basierend auf physikalisch fundierter
     Entscheidungslogik:
@@ -116,7 +116,7 @@ blueprint:
           name: Ziel-Luftfeuchtigkeit (%)
           description: >
             Oberhalb dieses Wertes wird Entfeuchten angestrebt (Komfortschwelle).
-          default: 60
+          default: 55
           selector:
             number:
               min: 40
@@ -131,7 +131,7 @@ blueprint:
             Der Entfeuchter schaltet erst aus, wenn die Innenfeuchte diesen Wert
             unterschreitet. Sollte kleiner als die Ziel-Luftfeuchtigkeit sein,
             um Taktung zu vermeiden.
-          default: 55
+          default: 50
           selector:
             number:
               min: 30
@@ -146,7 +146,7 @@ blueprint:
             Überschreitet die Innenfeuchte diesen Wert, wird der Entfeuchter
             unabhängig vom Außenluft-Vergleich, der Außentemperatur und geöffneten
             Fenstern eingeschaltet. (Schimmelschutz)
-          default: 70
+          default: 60
           selector:
             number:
               min: 50
@@ -209,6 +209,24 @@ blueprint:
           default: true
           selector:
             boolean:
+
+        min_ah_diff:
+          name: Mindest-AH-Differenz Innen/Außen (g/m³)
+          description: >
+            Der Entfeuchter läuft im Normalbetrieb nur wenn die absolute
+            Innenluftfeuchtigkeit mindestens diesen Wert über der absoluten
+            Außenluftfeuchtigkeit liegt. Verhindert sinnlosen Betrieb wenn
+            Innen- und Außenluft nahezu gleich feucht sind und der Entfeuchter
+            gegen den ständigen Außenluft-Eintrag ankämpfen würde.
+            0 = deaktiviert (kein Mindestabstand erforderlich).
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 5
+              step: 0.1
+              unit_of_measurement: "g/m³"
+              mode: slider
 
         max_comfort_temp:
           name: Maximale Wohlfühltemperatur (°C)
@@ -281,6 +299,7 @@ variables:
   critical_rh: !input critical_rh
   min_off_time: !input min_off_time
   enable_outdoor_compare: !input enable_outdoor_compare
+  min_ah_diff: !input min_ah_diff
   max_comfort_temp: !input max_comfort_temp
 
   # Entity-IDs als Variablen (notwendig für states()-Aufruf in Jinja2-Templates)
@@ -320,6 +339,15 @@ variables:
       {{ expand(_presence_sensors)
          | selectattr('state', 'in', ['home', 'on'])
          | list | count > 0 }}
+    {% endif %}
+
+  # AH-Differenz-Check: Innen muss mindestens min_ah_diff g/m³ feuchter sein als außen
+  # Bei min_ah_diff=0 oder nicht konfigurierten Außensensoren: immer true (Regel deaktiviert)
+  ah_diff_ok: >
+    {% if min_ah_diff | float(0) == 0 or not _outdoor_abs_id %}
+      true
+    {% else %}
+      {{ indoor_abs | float >= outdoor_abs | float + min_ah_diff | float }}
     {% endif %}
 
   # Mindestens ein Fenster/Tür ist offen
@@ -408,6 +436,7 @@ action:
             value_template: >
               {{ indoor_rh >= target_rh
                  and not ventilation_preferred
+                 and ah_diff_ok
                  and compressor_ready }}
         sequence:
           - action: humidifier.turn_on
