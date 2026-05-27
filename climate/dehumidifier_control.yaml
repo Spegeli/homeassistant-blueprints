@@ -1,7 +1,7 @@
 blueprint:
   name: "Smart Dehumidifier Control"
   description: |
-    Version 2.6
+    **Version**: 2.6
 
     Controls a dehumidifier dynamically using physically sound decision logic
     instead of fixed thresholds:
@@ -19,6 +19,9 @@ blueprint:
     - Emergency override at critical indoor humidity (mold protection).
     - Hysteresis prevents rapid cycling.
     - Optional active time window.
+
+    Found a bug or have a suggestion? Open an issue on GitHub:
+    https://github.com/Spegeli/homeassistant-blueprints/issues
   domain: automation
   input:
     humidifier_entity:
