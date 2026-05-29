@@ -20,6 +20,28 @@ def _handle_input_tag(loader, node):
 BlueprintLoader.add_constructor("!input", _handle_input_tag)
 
 
+def collect_declared_inputs(input_dict: dict) -> set:
+    """Recursively collect all declared input names.
+
+    Handles both flat inputs and inputs nested inside HA sections:
+      blueprint:
+        input:
+          my_section:        # section
+            input:
+              my_sensor: ... # nested input
+          direct_input: ...  # flat input
+    """
+    declared = set()
+    for key, value in input_dict.items():
+        if isinstance(value, dict) and "input" in value:
+            # This is a section — recurse into its nested inputs
+            declared |= collect_declared_inputs(value["input"])
+        else:
+            # Regular input
+            declared.add(key)
+    return declared
+
+
 def find_input_refs(data) -> set:
     """Recursively find all !input references in parsed data."""
     refs = set()
@@ -78,8 +100,8 @@ def validate_blueprint(path: Path) -> list:
         if "action" not in data and "actions" not in data:
             errors.append("Automation blueprint missing 'action' / 'actions'")
 
-    # Check !input reference consistency
-    declared = set(bp["input"].keys()) if isinstance(bp.get("input"), dict) else set()
+    # Check !input reference consistency (supports flat inputs and HA sections)
+    declared = collect_declared_inputs(bp["input"]) if isinstance(bp.get("input"), dict) else set()
     used = find_input_refs(data)
     undefined = used - declared
 
