@@ -1,9 +1,15 @@
 blueprint:
   name: "Person Arrival & Departure Automation"
   description: |
-    Version 1.1
+    **Version**: 1.1
 
     Trigger actions when a specific person arrives home or leaves home.
+
+    - Separate actions configurable for arrival and departure
+    - Works with any Home Assistant person entity
+
+    Found a bug or have a suggestion? Open an issue on GitHub:
+    https://github.com/Spegeli/homeassistant-blueprints/issues
   domain: automation
   input:
     person:
