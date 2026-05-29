@@ -18,9 +18,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install yamllint
-        run: pip install yamllint
-      - name: Lint blueprint YAML files
+
+      - name: Install dependencies
+        run: pip install yamllint pyyaml
+
+      - name: Lint YAML syntax
         run: |
           yamllint -d "{extends: relaxed, rules: {line-length: {max: 200}}}" \
             $(find . -name "*.yaml" -not -path "./.github/*")
+
+      - name: Validate blueprint structure
+        run: python .github/scripts/validate_blueprints.py
