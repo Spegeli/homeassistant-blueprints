@@ -1,0 +1,58 @@
+blueprint:
+  name: "Person Arrival & Departure Automation"
+  description: |
+    Version 1.1
+
+    Trigger actions when a specific person arrives home or leaves home.
+  domain: automation
+  input:
+    person:
+      name: Person
+      selector:
+        entity:
+          domain: person
+    button1_actions:
+      name: On Arrival
+      icon: mdi:home-import-outline
+      collapsed: true
+      input:
+        action_arrive:
+          name: Arrival Action
+          description: The action to run when the person arrives home.
+          default: []
+          selector:
+            action: {}
+    button2_actions:
+      name: On Departure
+      icon: mdi:home-export-outline
+      collapsed: true
+      input:
+        action_leave:
+          name: Departure Action
+          description: The action to run when the person leaves home.
+          default: []
+          selector:
+            action: {}
+
+trigger:
+  - platform: state
+    entity_id: !input person
+    from: 'not_home'
+    to: 'home'
+  - platform: state
+    entity_id: !input person
+    from: 'home'
+    to: 'not_home'
+
+action:
+  - choose:
+      - conditions:
+          - condition: state
+            entity_id: !input person
+            state: 'home'
+        sequence: !input action_arrive
+      - conditions:
+          - condition: state
+            entity_id: !input person
+            state: 'not_home'
+        sequence: !input action_leave
