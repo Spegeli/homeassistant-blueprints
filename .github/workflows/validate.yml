@@ -2,7 +2,7 @@ name: Validate
 
 on:
   push:
-    branches: [main]
+    branches: [dev, main]
     paths:
       - "**/*.yaml"
   pull_request:
