@@ -1,0 +1,26 @@
+name: Validate
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**/*.yaml"
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-yaml:
+    name: YAML validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install yamllint
+        run: pip install yamllint
+      - name: Lint blueprint YAML files
+        run: |
+          yamllint -d "{extends: relaxed, rules: {line-length: {max: 200}}}" \
+            $(find . -name "*.yaml" -not -path "./.github/*")
