@@ -46,6 +46,20 @@ Controls a dehumidifier dynamically using physically sound decision logic instea
 
 ---
 
+### 👤 Presence
+
+#### Person Arrival & Departure Automation
+
+Trigger actions when a specific person arrives home or leaves home.
+
+**Features:**
+- Separate actions configurable for arrival and departure
+- Works with any Home Assistant person entity
+
+[![Import Blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https://raw.githubusercontent.com/Spegeli/homeassistant-blueprints/main/presence/person_presence.yaml)
+
+---
+
 ## Installation
 
 1. Click the **"Import Blueprint"** button on the desired blueprint
