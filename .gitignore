@@ -1,1 +1,4 @@
-.claude/
+# ---> Claude Code
+# Local session notes and settings of the maintainer, never committed.
+/CLAUDE.md
+/.claude/

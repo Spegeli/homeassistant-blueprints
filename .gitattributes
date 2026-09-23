@@ -1,0 +1,3 @@
+# Keep LF line endings everywhere: yamllint rejects CRLF, and Git for Windows
+# checks files out with CRLF by default (core.autocrlf).
+* text=auto eol=lf
