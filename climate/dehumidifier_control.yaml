@@ -7,8 +7,8 @@ blueprint:
     device's built-in hygrostat, and recommends window ventilation whenever
     the outdoor air would dry the room better:
 
-    - Turns on above the target humidity and off below the turn-off
-      threshold, with an emergency threshold for mold protection.
+    - Turns on at the turn-on humidity and off below the turn-off
+      humidity, with an emergency humidity for mold protection.
     - Compares indoor and outdoor air via the dew point: ventilation is
       recommended when the outdoor air, warmed to room temperature, would be
       noticeably drier than the room air.
@@ -23,7 +23,8 @@ blueprint:
     - Optional emergency operation with open windows or outside the time
       window.
     - Compressor protection with minimum run and off times.
-    - Optional active time window and override of the device's hygrostat.
+    - Optional active time window and bypass of the device's own humidity
+      control.
 
     Found a bug or have a suggestion? Open an issue on GitHub:
     https://github.com/Spegeli/homeassistant-blueprints/issues
@@ -38,14 +39,17 @@ blueprint:
       input:
         humidifier_entity:
           name: Dehumidifier
-          description: "Select the dehumidifier entity (domain: humidifier)"
+          description: The dehumidifier to control (humidifier entity).
           selector:
             entity:
               domain: humidifier
 
         indoor_rh_sensor:
-          name: Indoor – Relative Humidity
-          description: Room humidity sensor (%). Controls the dehumidifier.
+          name: Room Humidity Sensor
+          description: >
+            Relative humidity (%) in the room of the dehumidifier. All humidity
+            thresholds refer to this sensor. Place it away from the
+            dehumidifier's air outlet.
           selector:
             entity:
               filter:
@@ -53,26 +57,26 @@ blueprint:
                   device_class: humidity
 
         override_device_hygrostat:
-          name: Override the Device's Hygrostat
+          name: Bypass the Device's Own Humidity Control
           description: >
-            Sets the device's target humidity to its minimum every time the
-            automation turns it on, so only your room sensor decides when it
-            stops. Useful when the built-in sensor sits in the device's own
-            dry exhaust air and stops too early.
+            Sets the device's own target humidity to its lowest value whenever
+            the automation turns it on. The device then does not stop by itself
+            and only the room humidity sensor decides. Useful when the device
+            measures in its own dry exhaust air and stops too early.
           default: false
           selector:
             boolean:
 
     thresholds:
-      name: Thresholds & Compressor
+      name: Thresholds & Run Times
       icon: mdi:tune
       collapsed: true
       input:
         target_rh:
-          name: Target Humidity (%)
+          name: Turn-on Humidity (%)
           description: >
-            Dehumidification (or a ventilation recommendation) starts at this
-            room humidity.
+            At this room humidity the dehumidifier turns on, or ventilation is
+            recommended first when that would dry the room better.
           default: 55
           selector:
             number:
@@ -83,11 +87,13 @@ blueprint:
               mode: slider
 
         turn_off_rh:
-          name: Turn-off Threshold – Hysteresis (%)
+          name: Turn-off Humidity (%)
           description: >
-            The dehumidifier only turns off once the room humidity drops below
-            this value. Must be lower than the target humidity to prevent
-            rapid cycling.
+            The dehumidifier turns off once the room humidity falls below this
+            value. Keep it a few points below the turn-on humidity so the
+            dehumidifier does not switch on and off constantly. If it is set at
+            or above the turn-on humidity, 2 points below the turn-on humidity
+            are used instead.
           default: 50
           selector:
             number:
@@ -98,12 +104,14 @@ blueprint:
               mode: slider
 
         critical_rh:
-          name: Critical Humidity – Emergency Override (%)
+          name: Emergency Humidity (%)
           description: >
-            From this room humidity on, the dehumidifier turns on regardless
-            of outdoor conditions or presence (mold protection). Open windows
-            and the time window still stop it, unless the emergency options
-            are enabled.
+            From this room humidity on, the dehumidifier runs even if
+            ventilation would be better or nobody is home (mold protection).
+            Open windows and the time window still stop it, unless "Emergency
+            Also With Open Windows" (section Windows & Doors) or "Emergency Also
+            Outside the Time Window" (section Time Window) is enabled. Should be
+            above the turn-on humidity.
           default: 60
           selector:
             number:
@@ -117,9 +125,10 @@ blueprint:
           name: Minimum Run Time (minutes)
           description: >
             Once on, the dehumidifier runs at least this long before it turns
-            off because the humidity dropped. Short cycles cost efficiency.
-            An open window or the end of the time window still turns it off
-            immediately. 0 = disabled.
+            off because the humidity fell below the turn-off humidity. Short
+            runs waste energy. An open window or the end of the time window
+            turn it off right away, unless an emergency option keeps it
+            running. 0 = disabled.
           default: 15
           selector:
             number:
@@ -132,9 +141,8 @@ blueprint:
         min_off_time:
           name: Minimum Off Time (minutes)
           description: >
-            The dehumidifier must remain off for at least this duration before
-            it can turn on again. Protects the compressor from short cycling.
-            Recommended: 5 minutes.
+            Once off, the dehumidifier stays off at least this long before it
+            can start again. Protects the compressor. Recommended: 5 minutes.
           default: 5
           selector:
             number:
@@ -152,9 +160,9 @@ blueprint:
         window_door_sensors:
           name: Window/Door Sensors (optional)
           description: >
-            One or more window or door sensors. While at least one reports
-            "open", the dehumidifier is turned off. Also used for the "close
-            the window" actions.
+            While one of them is open, the dehumidifier stays off. They are also
+            used for the "close the window" actions (section Ventilation –
+            Actions).
           default: []
           selector:
             entity:
@@ -170,9 +178,10 @@ blueprint:
         critical_ignores_windows:
           name: Emergency Also With Open Windows
           description: >
-            When enabled, the dehumidifier also runs while a window or door is
-            open once the critical humidity is reached. It keeps running until
-            the humidity is 2 points below the critical humidity.
+            At the emergency humidity, the dehumidifier also runs while a window
+            or door is open, until the humidity is 2 points below the emergency
+            humidity. Off by default, because an open window usually dries the
+            room faster.
           default: false
           selector:
             boolean:
@@ -182,17 +191,17 @@ blueprint:
       icon: mdi:thermometer-water
       collapsed: true
       description: >
-        Ventilation recommendations need the indoor temperature and both
-        outdoor sensors. Sensors of a weather service (for example DWD) are
-        fine outdoors. Leave them empty to control the dehumidifier on room
-        humidity only.
+        Ventilation recommendations need the room temperature and both outdoor
+        sensors. Outdoor sensors of a weather service (for example DWD) are
+        fine. Leave them empty to control the dehumidifier by room humidity
+        only.
       input:
         indoor_temp_sensor:
-          name: Indoor – Temperature (optional)
+          name: Room Temperature Sensor (optional)
           description: >
-            Room temperature sensor (°C), ideally the same device as the
-            humidity sensor. Without it the "close the window" actions only
-            use the maximum ventilation time.
+            Temperature (°C) in the same room, ideally from the same device as
+            the room humidity sensor. Without it, the "close the window" actions
+            only use the maximum ventilation time.
           default: ""
           selector:
             entity:
@@ -201,8 +210,8 @@ blueprint:
                   device_class: temperature
 
         outdoor_rh_sensor:
-          name: Outdoor – Relative Humidity (optional)
-          description: Outdoor humidity sensor (%).
+          name: Outdoor Humidity Sensor (optional)
+          description: Outdoor relative humidity (%).
           default: ""
           selector:
             entity:
@@ -211,10 +220,10 @@ blueprint:
                   device_class: humidity
 
         outdoor_temp_sensor:
-          name: Outdoor – Temperature (optional)
+          name: Outdoor Temperature Sensor (optional)
           description: >
-            Outdoor temperature sensor (°C). Also sets the maximum ventilation
-            time of the "close the window" actions.
+            Outdoor temperature (°C). Also sets the maximum ventilation time of
+            the "close the window" actions.
           default: ""
           selector:
             entity:
@@ -225,10 +234,9 @@ blueprint:
         presence_sensors:
           name: Presence Sensors (optional)
           description: >
-            One or more person entities or presence/occupancy binary sensors.
-            Ventilation is only recommended while someone is home, otherwise
-            the dehumidifier runs. Leave empty to assume someone is always
-            home.
+            Person entities or presence/occupancy sensors. Ventilation is only
+            recommended while someone is home, otherwise the dehumidifier runs.
+            Empty = someone is always home.
           default: []
           selector:
             entity:
@@ -250,8 +258,9 @@ blueprint:
           description: >
             Ventilation is recommended when the outdoor air, warmed to room
             temperature, would be at least this many percentage points drier
-            than the room air. Example: room 55 %, outdoor air would have
-            47 % in the room = 8 points.
+            than the room air. Example: room 55 %, outdoor air would have 47 %
+            in the room = 8 points. Higher = fewer but more effective
+            recommendations.
           default: 6
           selector:
             number:
@@ -264,9 +273,9 @@ blueprint:
         max_comfort_temp:
           name: Maximum Comfort Temperature (°C)
           description: >
-            Ventilation must not heat the room above your comfort level: it is
-            only recommended when the outdoor temperature is at most this
-            value or at most the indoor temperature.
+            Ventilation must not warm the room above your comfort level. It is
+            only recommended when it is at most this warm outside, or not
+            warmer outside than in the room.
           default: 20
           selector:
             number:
@@ -280,8 +289,8 @@ blueprint:
           name: Minimum Room Temperature (°C)
           description: >
             No ventilation recommendation below this room temperature, so the
-            walls do not cool down in winter. Falling below it while a window
-            is open also runs the "close the window" actions.
+            walls do not cool down in winter. If the room falls below it while
+            a window is open, the "close the window" actions run.
           default: 18
           selector:
             number:
@@ -294,8 +303,8 @@ blueprint:
         ventilation_wait_time:
           name: Wait Time for Ventilation (minutes)
           description: >
-            If nobody opens a window within this time after the
-            recommendation, the dehumidifier takes over.
+            After a ventilation recommendation, the dehumidifier waits this long
+            for a window to be opened. Then it takes over.
           default: 30
           selector:
             number:
@@ -310,14 +319,16 @@ blueprint:
       icon: mdi:bell-ring-outline
       collapsed: true
       description: >
-        Without "please ventilate" actions nobody would know about a
-        recommendation, so the dehumidifier never waits for ventilation.
+        Without "please ventilate" actions nobody learns about a
+        recommendation, so the dehumidifier never waits for ventilation. Both
+        actions can use the variables indoor_humidity (%) and drying_potential
+        (percentage points).
       input:
         ventilate_actions:
           name: '"Please Ventilate" Actions'
           description: >
-            Run once when ventilation becomes recommended, e.g. a notification.
-            Available variables: indoor_humidity, drying_potential.
+            Run once when ventilation becomes recommended, for example a
+            notification to your phone.
           default: []
           selector:
             action: {}
@@ -325,9 +336,9 @@ blueprint:
         close_actions:
           name: '"Close the Window" Actions'
           description: >
-            Run once per opening when a window should be closed again: the air
-            is exchanged (or the outdoor air is not drier), the room falls
-            below the minimum temperature, or the window has been open for
+            Run once per opening when the window should be closed again: the
+            air is exchanged (or the outdoor air is not drier), the room falls
+            below the minimum room temperature, or the window has been open for
             5 min (below 5 °C outside), 10 min (below 10 °C), 15 min (below
             15 °C), 20 min (below 20 °C) or 25 min.
           default: []
@@ -340,11 +351,12 @@ blueprint:
       collapsed: true
       input:
         enable_time_check:
-          name: Enable Time Window?
+          name: Enable Time Window
           description: >
-            When enabled, the dehumidifier only runs and actions only run
-            between the start and end time. Outside this window the
-            dehumidifier is turned off.
+            The dehumidifier and the actions only run between the start and end
+            time, for example to keep the night quiet. Outside it, the
+            dehumidifier is switched off. Windows across midnight (e.g.
+            22:00–06:00) work.
           default: false
           selector:
             boolean:
@@ -364,9 +376,9 @@ blueprint:
         critical_ignores_time_window:
           name: Emergency Also Outside the Time Window
           description: >
-            When enabled, the dehumidifier also runs outside the time window
-            once the critical humidity is reached. It keeps running until the
-            humidity is 2 points below the critical humidity.
+            At the emergency humidity, the dehumidifier also runs outside the
+            time window, until the humidity is 2 points below the emergency
+            humidity.
           default: false
           selector:
             boolean:
@@ -493,7 +505,7 @@ variables:
   _window_sensors: !input window_door_sensors
   _presence_sensors: !input presence_sensors
   _target_rh: !input target_rh
-  _turn_off_rh: !input turn_off_rh
+  _turn_off_rh_setting: !input turn_off_rh
   _critical_rh: !input critical_rh
   _min_run_time: !input min_run_time
   _min_off_time: !input min_off_time
@@ -507,6 +519,9 @@ variables:
   _critical_ignores_time_window: !input critical_ignores_time_window
   _critical_ignores_windows: !input critical_ignores_windows
   _override_device_hygrostat: !input override_device_hygrostat
+
+  # Turn-off humidity, at least 2 points below the turn-on humidity (prevents cycling)
+  _turn_off_rh: "{{ [_turn_off_rh_setting, _target_rh - 2] | min }}"
 
   # Room humidity (the condition below guarantees a valid value)
   indoor_humidity: "{{ states(_indoor_rh_id) | float(0) }}"
@@ -536,8 +551,8 @@ variables:
 
   any_window_open: "{{ expand(_window_sensors) | selectattr('state', 'eq', 'on') | list | count > 0 }}"
 
-  # Emergency: critical humidity, or still less than 2 points below it while running
-  # (prevents on/off cycling around the critical value)
+  # Emergency: emergency humidity reached, or still less than 2 points below it while
+  # running (prevents on/off cycling around the emergency humidity)
   emergency: >-
     {{ indoor_humidity >= _critical_rh
        or (is_state(_humidifier_id, 'on') and indoor_humidity >= _critical_rh - 2) }}
@@ -579,7 +594,7 @@ action:
             target:
               entity_id: !input humidifier_entity
 
-      # 2. Critical humidity → on (with open windows only if that option is enabled)
+      # 2. Emergency humidity → on (with open windows only if that option is enabled)
       - conditions: >-
           {{ indoor_humidity >= _critical_rh and compressor_ready
              and (not any_window_open or _critical_ignores_windows) }}
@@ -613,11 +628,11 @@ action:
       - conditions: "{{ ventilation_recommended and _ventilate_actions | count > 0 }}"
         sequence: []
 
-      # 6. Above the target humidity → on
+      # 6. Turn-on humidity reached → on
       - conditions: "{{ indoor_humidity >= _target_rh and compressor_ready }}"
         sequence: *turn_on
 
-      # 7. Below the turn-off threshold → off (after the minimum run time)
+      # 7. Below the turn-off humidity → off (after the minimum run time)
       - conditions: "{{ indoor_humidity < _turn_off_rh and min_run_done }}"
         sequence: *turn_off
 

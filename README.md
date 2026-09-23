@@ -26,7 +26,7 @@ A collection of Home Assistant blueprints for automations.
 Controls a dehumidifier with your own room sensor instead of the device's built-in hygrostat, and tells you when opening a window would dry the room better.
 
 **Features:**
-- Turns on above the target humidity and off below the turn-off threshold, with an emergency override at critical humidity (mold protection)
+- Turns on at the turn-on humidity and off below the turn-off humidity, with an emergency humidity for mold protection
 - Compares indoor and outdoor air via the dew point: recommends ventilation when the outdoor air, warmed to room temperature, would be noticeably drier
 - No ventilation recommendation if it would heat the room above your comfort temperature or cool it down too much
 - Optional actions (e.g. notifications): "please ventilate" and "close the window", with a ventilation time based on the outdoor temperature
@@ -34,14 +34,14 @@ Controls a dehumidifier with your own room sensor instead of the device's built-
 - Optional window/door sensors: the dehumidifier turns off while a window is open
 - Optional presence detection: ventilation is only recommended while someone is home
 - Compressor protection with minimum run and off times
-- Optional active time window and override of the device's own hygrostat
+- Optional active time window and bypass of the device's own humidity control
 
 **Requirements:**
 - Home Assistant 2024.8 or newer
 - Indoor relative humidity sensor (required)
 - For ventilation recommendations: indoor temperature, outdoor temperature and outdoor humidity sensors (a weather service is fine)
 
-How it decides, with 54 calculated scenarios: [dehumidifier_control.md](climate/dehumidifier_control.md)
+How it decides, with 56 calculated scenarios: [dehumidifier_control.md](climate/dehumidifier_control.md)
 
 [![Import Blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https://raw.githubusercontent.com/Spegeli/homeassistant-blueprints/main/climate/dehumidifier_control.yaml)
 
