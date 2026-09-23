@@ -2,3 +2,7 @@
 # Local session notes and settings of the maintainer, never committed.
 /CLAUDE.md
 /.claude/
+
+# ---> Local tools
+# Helper scripts of the maintainer (e.g. generating the scenario tables), never committed.
+/tools/
