@@ -67,7 +67,9 @@ blueprint:
           name: Indoor – Temperature (optional)
           description: >
             Room temperature sensor (°C), ideally the same device as the
-            humidity sensor. Needed for ventilation recommendations.
+            humidity sensor. Needed for ventilation recommendations. Without
+            it the dehumidifier is controlled by humidity only, and the "close
+            the window" actions only use the maximum ventilation time.
           default: ""
           selector:
             entity:
@@ -84,18 +86,8 @@ blueprint:
         (for example DWD) are fine. Leave both empty to control the
         dehumidifier on indoor humidity only.
       input:
-        outdoor_temp_sensor:
-          name: Outdoor – Temperature
-          description: Outdoor temperature sensor (°C).
-          default: ""
-          selector:
-            entity:
-              filter:
-                - domain: sensor
-                  device_class: temperature
-
         outdoor_rh_sensor:
-          name: Outdoor – Relative Humidity
+          name: Outdoor – Relative Humidity (optional)
           description: Outdoor humidity sensor (%).
           default: ""
           selector:
@@ -103,6 +95,18 @@ blueprint:
               filter:
                 - domain: sensor
                   device_class: humidity
+
+        outdoor_temp_sensor:
+          name: Outdoor – Temperature (optional)
+          description: >
+            Outdoor temperature sensor (°C). Also sets the maximum ventilation
+            time of the "close the window" actions.
+          default: ""
+          selector:
+            entity:
+              filter:
+                - domain: sensor
+                  device_class: temperature
 
     windows_doors:
       name: Windows & Doors
