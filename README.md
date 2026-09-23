@@ -23,24 +23,25 @@ A collection of Home Assistant blueprints for automations.
 
 #### Smart Dehumidifier Control
 
-Controls a dehumidifier dynamically using physically sound decision logic instead of fixed thresholds.
+Controls a dehumidifier with your own room sensor instead of the device's built-in hygrostat, and tells you when opening a window would dry the room better.
 
 **Features:**
-- Compares indoor and outdoor absolute humidity: if ventilating would be more efficient, the dehumidifier stays off
-- Considers outdoor temperature: no ventilation recommendation if it would overheat the apartment
-- Optional minimum AH differential: dehumidifier only runs when indoor air is significantly more humid than outdoor
-- Optional window/door sensors: dehumidifier turns off automatically when a window is opened
-- Optional presence detection: when nobody is home, ventilation is ignored and the dehumidifier takes over
-- Compressor protection via configurable minimum off time
-- Emergency override at critical indoor humidity (mold protection)
-- Hysteresis prevents rapid cycling
-- Optional active time window
+- Turns on above the target humidity and off below the turn-off threshold, with an emergency override at critical humidity (mold protection)
+- Compares indoor and outdoor air via the dew point: recommends ventilation when the outdoor air, warmed to room temperature, would be noticeably drier
+- No ventilation recommendation if it would heat the room above your comfort temperature or cool it down too much
+- Optional actions (e.g. notifications): "please ventilate" and "close the window", with a ventilation time based on the outdoor temperature
+- If nobody ventilates in time, the dehumidifier takes over
+- Optional window/door sensors: the dehumidifier turns off while a window is open
+- Optional presence detection: ventilation is only recommended while someone is home
+- Compressor protection with minimum run and off times
+- Optional active time window and override of the device's own hygrostat
 
 **Requirements:**
-- Home Assistant 2024.6 or newer
+- Home Assistant 2024.8 or newer
 - Indoor relative humidity sensor (required)
-- Indoor absolute humidity sensor (required)
-- Outdoor sensors optional (absolute humidity + temperature)
+- For ventilation recommendations: indoor temperature, outdoor temperature and outdoor humidity sensors (a weather service is fine)
+
+How it decides, with 50 calculated scenarios: [dehumidifier_control.md](climate/dehumidifier_control.md)
 
 [![Import Blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https://raw.githubusercontent.com/Spegeli/homeassistant-blueprints/main/climate/dehumidifier_control.yaml)
 

@@ -1,30 +1,33 @@
 blueprint:
   name: "Smart Dehumidifier Control"
   description: |
-    **Version**: 2.6
+    **Version**: 3.0
 
-    Controls a dehumidifier dynamically using physically sound decision logic
-    instead of fixed thresholds:
+    Controls a dehumidifier with your own room sensor instead of the
+    device's built-in hygrostat, and recommends window ventilation whenever
+    the outdoor air would dry the room better:
 
-    - Compares indoor and outdoor absolute humidity: if ventilating would be
-      more efficient (outdoor air drier AND outdoor temperature below the
-      configured comfort limit), the dehumidifier stays off.
-    - Optional minimum AH differential: dehumidifier only runs when indoor
-      absolute humidity exceeds outdoor by a configurable margin.
-    - Optional window/door sensors: dehumidifier turns off automatically
-      when a window or door is opened.
-    - Optional presence detection: when nobody is home, ventilation is
-      ignored and the dehumidifier takes over.
-    - Minimum off-time protects the compressor from short cycling.
-    - Emergency override at critical indoor humidity (mold protection).
-    - Hysteresis prevents rapid cycling.
-    - Optional active time window.
+    - Turns on above the target humidity and off below the turn-off
+      threshold, with an emergency threshold for mold protection.
+    - Compares indoor and outdoor air via the dew point: ventilation is
+      recommended when the outdoor air, warmed to room temperature, would be
+      noticeably drier than the room air.
+    - Only recommends ventilation while someone is home, when it will not
+      heat the room above your comfort temperature and when the room is
+      warm enough.
+    - Optional actions (e.g. notifications): "please ventilate" and "close
+      the window" (air exchanged, room getting cold, or a maximum time that
+      depends on the outdoor temperature).
+    - If nobody opens a window in time, the dehumidifier takes over.
+    - Turns off while a window or door is open.
+    - Compressor protection with minimum run and off times.
+    - Optional active time window and override of the device's hygrostat.
 
     Found a bug or have a suggestion? Open an issue on GitHub:
     https://github.com/Spegeli/homeassistant-blueprints/issues
   domain: automation
   homeassistant:
-    min_version: 2024.6.0
+    min_version: 2024.8.0
   input:
     humidifier_entity:
       name: Dehumidifier
@@ -33,6 +36,17 @@ blueprint:
         entity:
           domain: humidifier
 
+    override_device_hygrostat:
+      name: Override the Device's Hygrostat
+      description: >
+        Sets the device's target humidity to its minimum every time the
+        automation turns it on, so only your room sensor decides when it
+        stops. Useful when the built-in sensor sits in the device's own dry
+        exhaust air and stops too early.
+      default: false
+      selector:
+        boolean:
+
     indoor_sensors:
       name: Indoor Sensors
       icon: mdi:home-thermometer
@@ -40,58 +54,53 @@ blueprint:
       input:
         indoor_rh_sensor:
           name: Indoor – Relative Humidity
-          description: Sensor for indoor relative humidity (%)
+          description: Room humidity sensor (%). Controls the dehumidifier.
           selector:
             entity:
               filter:
                 - domain: sensor
                   device_class: humidity
 
-        indoor_abs_sensor:
-          name: Indoor – Absolute Humidity
-          description: Sensor for indoor absolute humidity (g/m³)
-          selector:
-            entity:
-              domain: sensor
-
-    outdoor_sensors:
-      name: Outdoor Sensors (optional)
-      icon: mdi:weather-partly-cloudy
-      collapsed: true
-      input:
-        outdoor_rh_sensor:
-          name: Outdoor – Relative Humidity
-          description: Sensor for outdoor relative humidity (%)
-          default: ""
-          selector:
-            entity:
-              filter:
-                - domain: sensor
-                  device_class: humidity
-
-        outdoor_abs_sensor:
-          name: Outdoor – Absolute Humidity
+        indoor_temp_sensor:
+          name: Indoor – Temperature (optional)
           description: >
-            Sensor for outdoor absolute humidity (g/m³).
-            Required to determine whether ventilating would be more efficient
-            than running the dehumidifier. Without this sensor the dehumidifier
-            operates based on indoor humidity only.
-          default: ""
-          selector:
-            entity:
-              domain: sensor
-
-        outdoor_temp_sensor:
-          name: Outdoor – Temperature
-          description: >
-            Sensor for outdoor temperature (°C).
-            Required together with the outdoor absolute humidity sensor.
+            Room temperature sensor (°C), ideally the same device as the
+            humidity sensor. Needed for ventilation recommendations.
           default: ""
           selector:
             entity:
               filter:
                 - domain: sensor
                   device_class: temperature
+
+    outdoor_sensors:
+      name: Outdoor Sensors (optional)
+      icon: mdi:weather-partly-cloudy
+      collapsed: true
+      description: >
+        Needed for ventilation recommendations. Sensors of a weather service
+        (for example DWD) are fine. Leave both empty to control the
+        dehumidifier on indoor humidity only.
+      input:
+        outdoor_temp_sensor:
+          name: Outdoor – Temperature
+          description: Outdoor temperature sensor (°C).
+          default: ""
+          selector:
+            entity:
+              filter:
+                - domain: sensor
+                  device_class: temperature
+
+        outdoor_rh_sensor:
+          name: Outdoor – Relative Humidity
+          description: Outdoor humidity sensor (%).
+          default: ""
+          selector:
+            entity:
+              filter:
+                - domain: sensor
+                  device_class: humidity
 
     windows_doors:
       name: Windows & Doors
@@ -102,8 +111,8 @@ blueprint:
           name: Window/Door Sensors (optional)
           description: >
             One or more window or door sensors. While at least one reports
-            "open", the dehumidifier is turned off.
-            Exception: emergency override at critical humidity.
+            "open", the dehumidifier is turned off (except at critical
+            humidity). Also used for the "close the window" actions.
           default: []
           selector:
             entity:
@@ -117,14 +126,15 @@ blueprint:
                   device_class: opening
 
     thresholds:
-      name: Thresholds
+      name: Thresholds & Compressor
       icon: mdi:tune
       collapsed: true
       input:
         target_rh:
           name: Target Humidity (%)
           description: >
-            Dehumidification is triggered above this value (comfort threshold).
+            Dehumidification (or a ventilation recommendation) starts at this
+            room humidity.
           default: 55
           selector:
             number:
@@ -137,7 +147,7 @@ blueprint:
         turn_off_rh:
           name: Turn-off Threshold – Hysteresis (%)
           description: >
-            The dehumidifier only turns off once indoor humidity drops below
+            The dehumidifier only turns off once the room humidity drops below
             this value. Must be lower than the target humidity to prevent
             rapid cycling.
           default: 50
@@ -152,9 +162,8 @@ blueprint:
         critical_rh:
           name: Critical Humidity – Emergency Override (%)
           description: >
-            When indoor humidity exceeds this value, the dehumidifier turns on
-            regardless of outdoor conditions, open windows, or presence.
-            (Mold protection)
+            From this room humidity on, the dehumidifier turns on regardless
+            of outdoor conditions, open windows or presence (mold protection).
           default: 60
           selector:
             number:
@@ -164,12 +173,28 @@ blueprint:
               unit_of_measurement: "%"
               mode: slider
 
+        min_run_time:
+          name: Minimum Run Time (minutes)
+          description: >
+            Once on, the dehumidifier runs at least this long before it turns
+            off because the humidity dropped. Short cycles cost efficiency.
+            An open window or the end of the time window still turns it off
+            immediately. 0 = disabled.
+          default: 15
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              unit_of_measurement: "min"
+              mode: slider
+
         min_off_time:
           name: Minimum Off Time (minutes)
           description: >
             The dehumidifier must remain off for at least this duration before
-            it can turn on again. Protects the compressor from short cycling
-            and improves efficiency. Recommended: 5 minutes.
+            it can turn on again. Protects the compressor from short cycling.
+            Recommended: 5 minutes.
           default: 5
           selector:
             number:
@@ -188,9 +213,9 @@ blueprint:
           name: Presence Sensors (optional)
           description: >
             One or more person entities or presence/occupancy binary sensors.
-            When nobody is detected as home, ventilation is not recommended
-            and the dehumidifier runs instead.
-            Leave empty to disable presence detection.
+            Ventilation is only recommended while someone is home, otherwise
+            the dehumidifier runs. Leave empty to assume someone is always
+            home.
           default: []
           selector:
             entity:
@@ -203,46 +228,36 @@ blueprint:
                   device_class: occupancy
 
     ventilation_logic:
-      name: Ventilation Logic
+      name: Ventilation
       icon: mdi:air-filter
       collapsed: true
+      description: >
+        Needs the indoor temperature, both outdoor sensors and the "please
+        ventilate" actions. Without these actions nobody would know about the
+        recommendation, so the dehumidifier never waits for ventilation.
       input:
-        enable_outdoor_compare:
-          name: Enable Outdoor Air Comparison?
+        min_drying_effect:
+          name: Minimum Drying Effect (percentage points)
           description: >
-            When enabled: the dehumidifier stays off while ventilating would
-            be more efficient (outdoor absolute humidity lower than indoor AND
-            outdoor temperature below the comfort limit).
-            When disabled: react to indoor humidity only.
-          default: true
-          selector:
-            boolean:
-
-        min_ah_diff:
-          name: Minimum Indoor/Outdoor AH Differential (g/m³)
-          description: >
-            In normal operation the dehumidifier only runs when indoor absolute
-            humidity exceeds outdoor absolute humidity by at least this value.
-            Prevents pointless operation when indoor and outdoor humidity are
-            nearly equal and the dehumidifier would fight constant outdoor
-            air infiltration.
-            0 = disabled (no minimum differential required).
-          default: 0
+            Ventilation is recommended when the outdoor air, warmed to room
+            temperature, would be at least this many percentage points drier
+            than the room air. Example: room 55 %, outdoor air would have
+            47 % in the room = 8 points.
+          default: 6
           selector:
             number:
-              min: 0
-              max: 5
-              step: 0.1
-              unit_of_measurement: "g/m³"
+              min: 2
+              max: 20
+              step: 1
+              unit_of_measurement: "%"
               mode: slider
 
         max_comfort_temp:
           name: Maximum Comfort Temperature (°C)
           description: >
-            Ventilation is only recommended when the outdoor temperature does
-            not exceed this value. Ensures the apartment never heats above
-            this limit through ventilation. Example: 20°C – ventilation is
-            recommended at 17°C outside (17 ≤ 20) but not at 23°C (23 > 20).
+            Ventilation must not heat the room above your comfort level: it is
+            only recommended when the outdoor temperature is at most this
+            value or at most the indoor temperature.
           default: 20
           selector:
             number:
@@ -252,6 +267,56 @@ blueprint:
               unit_of_measurement: "°C"
               mode: slider
 
+        min_indoor_temp:
+          name: Minimum Room Temperature (°C)
+          description: >
+            No ventilation recommendation below this room temperature, so the
+            walls do not cool down in winter. Falling below it while a window
+            is open also runs the "close the window" actions.
+          default: 18
+          selector:
+            number:
+              min: 10
+              max: 24
+              step: 0.5
+              unit_of_measurement: "°C"
+              mode: slider
+
+        ventilation_wait_time:
+          name: Wait Time for Ventilation (minutes)
+          description: >
+            If nobody opens a window within this time after the
+            recommendation, the dehumidifier takes over.
+          default: 30
+          selector:
+            number:
+              min: 5
+              max: 120
+              step: 5
+              unit_of_measurement: "min"
+              mode: slider
+
+        ventilate_actions:
+          name: '"Please Ventilate" Actions'
+          description: >
+            Run once when ventilation becomes recommended, e.g. a notification.
+            Available variables: indoor_humidity, drying_potential.
+          default: []
+          selector:
+            action: {}
+
+        close_actions:
+          name: '"Close the Window" Actions'
+          description: >
+            Run once per opening when a window should be closed again: the air
+            is exchanged (or the outdoor air is not drier), the room falls
+            below the minimum temperature, or the window has been open for
+            5 min (below 5 °C outside), 10 min (below 10 °C), 15 min (below
+            15 °C), 20 min (below 20 °C) or 25 min.
+          default: []
+          selector:
+            action: {}
+
     time_window:
       name: Time Window
       icon: mdi:clock-outline
@@ -260,8 +325,9 @@ blueprint:
         enable_time_check:
           name: Enable Time Window?
           description: >
-            When enabled, dehumidification only runs between the start and
-            end time. Outside this window the dehumidifier is turned off.
+            When enabled, the dehumidifier only runs and actions only run
+            between the start and end time. Outside this window the
+            dehumidifier is turned off.
           default: false
           selector:
             boolean:
@@ -278,14 +344,37 @@ blueprint:
           selector:
             time:
 
+        critical_ignores_time_window:
+          name: Emergency Also Outside the Time Window
+          description: >
+            When enabled, the dehumidifier also runs outside the time window
+            while the critical humidity is reached.
+          default: false
+          selector:
+            boolean:
+
 mode: single
 max_exceeded: silent
 
+# Inputs for the template triggers below (triggers cannot use the variables section)
+trigger_variables:
+  _indoor_rh_id: !input indoor_rh_sensor
+  _indoor_temp_id: !input indoor_temp_sensor
+  _outdoor_temp_id: !input outdoor_temp_sensor
+  _outdoor_rh_id: !input outdoor_rh_sensor
+  _window_sensors: !input window_door_sensors
+  _presence_sensors: !input presence_sensors
+  _target_rh: !input target_rh
+  _min_drying_effect: !input min_drying_effect
+  _max_comfort_temp: !input max_comfort_temp
+  _min_indoor_temp: !input min_indoor_temp
+  _enable_time_check: !input enable_time_check
+  _start_time: !input start_time
+  _end_time: !input end_time
+
 trigger:
   - platform: state
-    entity_id:
-      - !input indoor_rh_sensor
-      - !input indoor_abs_sensor
+    entity_id: !input indoor_rh_sensor
   - platform: state
     entity_id: !input window_door_sensors
   - platform: state
@@ -293,174 +382,218 @@ trigger:
   - platform: time_pattern
     minutes: "/5"
 
-condition: []
+  # Ventilation became recommended → "please ventilate" actions.
+  # The drying effect is the room humidity minus the humidity the outdoor air
+  # would have at room temperature (Magnus formula, vapour pressure ratio).
+  - platform: template
+    id: ventilate
+    value_template: &ventilation_recommended >-
+      {%- set rh_in = states(_indoor_rh_id) -%}
+      {%- set t_in = states(_indoor_temp_id) -%}
+      {%- set t_out = states(_outdoor_temp_id) -%}
+      {%- set rh_out = states(_outdoor_rh_id) -%}
+      {%- if rh_in | is_number and t_in | is_number
+            and t_out | is_number and rh_out | is_number -%}
+        {%- set rh_in = rh_in | float -%}
+        {%- set t_in = t_in | float -%}
+        {%- set t_out = t_out | float -%}
+        {%- set drying = rh_in - rh_out | float
+              * e ** (17.62 * t_out / (243.12 + t_out) - 17.62 * t_in / (243.12 + t_in)) -%}
+        {%- set now_time = now().strftime('%H:%M:%S') -%}
+        {%- set in_window = not _enable_time_check
+              or ((_start_time <= now_time <= _end_time) if _start_time < _end_time
+                  else (now_time >= _start_time or now_time <= _end_time)) -%}
+        {%- set home = _presence_sensors | count == 0
+              or expand(_presence_sensors) | selectattr('state', 'in', ['home', 'on']) | list | count > 0 -%}
+        {%- set window_open = expand(_window_sensors) | selectattr('state', 'eq', 'on') | list | count > 0 -%}
+        {{ in_window and home and not window_open
+           and rh_in >= _target_rh
+           and drying >= _min_drying_effect
+           and (t_out <= _max_comfort_temp or t_out <= t_in)
+           and t_in >= _min_indoor_temp }}
+      {%- else -%}
+        false
+      {%- endif -%}
+
+  # Recommended for the whole wait time and nobody opened a window → dehumidifier
+  - platform: template
+    id: ventilate_timeout
+    value_template: *ventilation_recommended
+    for:
+      minutes: !input ventilation_wait_time
+
+  # A window should be closed again → "close the window" actions
+  - platform: template
+    id: close
+    value_template: >-
+      {%- set open_windows = expand(_window_sensors) | selectattr('state', 'eq', 'on') | list -%}
+      {%- set now_time = now().strftime('%H:%M:%S') -%}
+      {%- set in_window = not _enable_time_check
+            or ((_start_time <= now_time <= _end_time) if _start_time < _end_time
+                else (now_time >= _start_time or now_time <= _end_time)) -%}
+      {%- if open_windows | count == 0 or not in_window -%}
+        false
+      {%- else -%}
+        {%- set minutes_open = (now() - open_windows | map(attribute='last_changed') | min).total_seconds() / 60 -%}
+        {%- set rh_in = states(_indoor_rh_id) -%}
+        {%- set t_in = states(_indoor_temp_id) -%}
+        {%- set t_out = states(_outdoor_temp_id) -%}
+        {%- set rh_out = states(_outdoor_rh_id) -%}
+        {%- set max_minutes = 10 -%}
+        {%- if t_out | is_number -%}
+          {%- set t = t_out | float -%}
+          {%- set max_minutes = 5 if t < 5 else 10 if t < 10 else 15 if t < 15 else 20 if t < 20 else 25 -%}
+        {%- endif -%}
+        {%- set too_cold = t_in | is_number and t_in | float < _min_indoor_temp
+              and (not t_out | is_number or t_out | float < t_in | float) -%}
+        {%- set exchanged = false -%}
+        {%- if minutes_open >= 3 and rh_in | is_number and t_in | is_number
+              and t_out | is_number and rh_out | is_number -%}
+          {%- set exchanged = rh_in | float - rh_out | float
+                * e ** (17.62 * t_out | float / (243.12 + t_out | float)
+                        - 17.62 * t_in | float / (243.12 + t_in | float))
+                < _min_drying_effect / 2 -%}
+        {%- endif -%}
+        {{ minutes_open >= max_minutes or too_cold or exchanged }}
+      {%- endif -%}
+
+  # After a restart or reload the wait timer above starts from scratch
+  - platform: homeassistant
+    event: start
+    id: restart
+  - platform: event
+    event_type: automation_reloaded
+    id: restart
 
 variables:
-  # Time window inputs
-  enable_time_check: !input enable_time_check
-  start_time: !input start_time
-  end_time: !input end_time
-
-  # Threshold inputs
-  target_rh: !input target_rh
-  turn_off_rh: !input turn_off_rh
-  critical_rh: !input critical_rh
-  min_off_time: !input min_off_time
-  enable_outdoor_compare: !input enable_outdoor_compare
-  min_ah_diff: !input min_ah_diff
-  max_comfort_temp: !input max_comfort_temp
-
-  # Entity IDs as variables (required for states() calls inside Jinja2 templates)
+  # Inputs
   _humidifier_id: !input humidifier_entity
   _indoor_rh_id: !input indoor_rh_sensor
-  _indoor_abs_id: !input indoor_abs_sensor
-  _outdoor_abs_id: !input outdoor_abs_sensor
+  _indoor_temp_id: !input indoor_temp_sensor
   _outdoor_temp_id: !input outdoor_temp_sensor
+  _outdoor_rh_id: !input outdoor_rh_sensor
   _window_sensors: !input window_door_sensors
   _presence_sensors: !input presence_sensors
+  _target_rh: !input target_rh
+  _turn_off_rh: !input turn_off_rh
+  _critical_rh: !input critical_rh
+  _min_run_time: !input min_run_time
+  _min_off_time: !input min_off_time
+  _min_drying_effect: !input min_drying_effect
+  _max_comfort_temp: !input max_comfort_temp
+  _min_indoor_temp: !input min_indoor_temp
+  _ventilate_actions: !input ventilate_actions
+  _enable_time_check: !input enable_time_check
+  _start_time: !input start_time
+  _end_time: !input end_time
+  _critical_ignores_time_window: !input critical_ignores_time_window
+  _override_device_hygrostat: !input override_device_hygrostat
 
-  # Sensor values as numbers
-  indoor_rh: "{{ states(_indoor_rh_id) | float(0) }}"
-  indoor_abs: "{{ states(_indoor_abs_id) | float(0) }}"
-  outdoor_abs: "{{ states(_outdoor_abs_id) | float(0) }}"
+  # Room humidity (the condition below guarantees a valid value)
+  indoor_humidity: "{{ states(_indoor_rh_id) | float(0) }}"
+
+  # Percentage points the room humidity could drop by ventilating (for actions)
+  drying_potential: >-
+    {%- set t_in = states(_indoor_temp_id) -%}
+    {%- set t_out = states(_outdoor_temp_id) -%}
+    {%- set rh_out = states(_outdoor_rh_id) -%}
+    {%- if t_in | is_number and t_out | is_number and rh_out | is_number -%}
+      {%- set t_in = t_in | float -%}
+      {%- set t_out = t_out | float -%}
+      {{ (indoor_humidity - rh_out | float
+          * e ** (17.62 * t_out / (243.12 + t_out) - 17.62 * t_in / (243.12 + t_in))) | round(1) }}
+    {%- else -%}
+      {{ none }}
+    {%- endif -%}
+
+  ventilation_recommended: *ventilation_recommended
 
   # Time window check (supports windows spanning midnight)
-  in_time_window: >
-    {% if not enable_time_check %}
-      true
-    {% else %}
-      {% set n = now().strftime('%H:%M:%S') %}
-      {% if start_time < end_time %}
-        {{ start_time <= n <= end_time }}
-      {% else %}
-        {{ n >= start_time or n <= end_time }}
-      {% endif %}
-    {% endif %}
+  in_time_window: >-
+    {%- set now_time = now().strftime('%H:%M:%S') -%}
+    {{ not _enable_time_check
+       or ((_start_time <= now_time <= _end_time) if _start_time < _end_time
+           else (now_time >= _start_time or now_time <= _end_time)) }}
 
-  # At least one person is home
-  # Empty list → true (no sensor configured = always assume someone is home)
-  # Supports person entities (state: "home") and binary sensors (state: "on")
-  someone_home: >
-    {% if _presence_sensors | list | count == 0 %}
-      true
-    {% else %}
-      {{ expand(_presence_sensors)
-         | selectattr('state', 'in', ['home', 'on'])
-         | list | count > 0 }}
-    {% endif %}
+  any_window_open: "{{ expand(_window_sensors) | selectattr('state', 'eq', 'on') | list | count > 0 }}"
 
-  # AH differential check: indoor must exceed outdoor by at least min_ah_diff g/m³
-  # Disabled (always true) when min_ah_diff=0 or outdoor sensors not configured
-  ah_diff_ok: >
-    {% if min_ah_diff | float(0) == 0 or not _outdoor_abs_id %}
-      true
-    {% else %}
-      {{ indoor_abs | float >= outdoor_abs | float + min_ah_diff | float }}
-    {% endif %}
+  # Compressor protection: restart only after the minimum off time
+  compressor_ready: >-
+    {%- set dehumidifier = states[_humidifier_id] -%}
+    {{ dehumidifier is none or dehumidifier.state != 'off'
+       or (now() - dehumidifier.last_changed).total_seconds() >= _min_off_time * 60 }}
 
-  # At least one window or door is open
-  # Empty list → false (no sensor configured = no effect)
-  any_window_open: >
-    {% if _window_sensors | list | count == 0 %}
-      false
-    {% else %}
-      {{ expand(_window_sensors) | selectattr('state', 'eq', 'on') | list | count > 0 }}
-    {% endif %}
+  # Efficiency: stop because of low humidity only after the minimum run time
+  min_run_done: >-
+    {%- set dehumidifier = states[_humidifier_id] -%}
+    {{ dehumidifier is none or dehumidifier.state != 'on'
+       or (now() - dehumidifier.last_changed).total_seconds() >= _min_run_time * 60 }}
 
-  # Compressor protection: dehumidifier may only restart after minimum off time has elapsed
-  # No restriction if currently running or state is unavailable/unknown
-  compressor_ready: >
-    {% set h_state = states(_humidifier_id) %}
-    {% if h_state in ['unavailable', 'unknown'] %}
-      true
-    {% elif h_state != 'off' %}
-      true
-    {% else %}
-      {{ (now() - states[_humidifier_id].last_changed).total_seconds() >= min_off_time * 60 }}
-    {% endif %}
-
-  # Ventilation is preferred when all of the following are true:
-  # 1. Outdoor sensors are configured (otherwise no comparison possible)
-  # 2. Someone is home (can open/close windows)
-  # 3. Outdoor AH < indoor AH (outdoor air is drier)
-  # 4. Outdoor temperature ≤ max_comfort_temp (ventilating won't overheat the apartment)
-  # Unconfigured or unavailable sensors → false (dehumidifier runs as fallback)
-  ventilation_preferred: >
-    {% if not _outdoor_abs_id or not _outdoor_temp_id %}
-      false
-    {% else %}
-      {% set o_abs = states(_outdoor_abs_id) %}
-      {% set i_abs = states(_indoor_abs_id) %}
-      {% set o_temp = states(_outdoor_temp_id) %}
-      {% if o_abs in ['unavailable', 'unknown', 'none']
-         or i_abs in ['unavailable', 'unknown', 'none']
-         or o_temp in ['unavailable', 'unknown', 'none'] %}
-        false
-      {% else %}
-        {{ someone_home
-           and enable_outdoor_compare
-           and o_abs | float < i_abs | float
-           and o_temp | float <= max_comfort_temp | float(20) }}
-      {% endif %}
-    {% endif %}
+condition:
+  - condition: template
+    value_template: "{{ states(_indoor_rh_id) | is_number }}"
 
 action:
+  # User-defined actions (e.g. notifications)
   - choose:
+      - conditions: "{{ trigger.id == 'ventilate' }}"
+        sequence: !input ventilate_actions
+      - conditions: "{{ trigger.id == 'close' }}"
+        sequence: !input close_actions
 
-      # Branch 1: Outside time window → turn off
-      - conditions:
+  # Dehumidifier control: the first matching branch wins
+  - choose:
+      # 1. Outside the time window → off (emergency only if allowed)
+      - conditions: >-
+          {{ _enable_time_check and not in_time_window
+             and not (_critical_ignores_time_window
+                      and (indoor_humidity >= _critical_rh or not min_run_done)) }}
+        sequence: &turn_off
           - condition: template
-            value_template: "{{ enable_time_check and not in_time_window }}"
-        sequence:
+            value_template: "{{ is_state(_humidifier_id, 'on') }}"
           - action: humidifier.turn_off
             target:
               entity_id: !input humidifier_entity
 
-      # Branch 2: Emergency override → always turn on (mold protection)
-      # Applies even with open windows – compressor protection remains active
-      - conditions:
+      # 2. Emergency → on, even with open windows (mold protection)
+      - conditions: "{{ indoor_humidity >= _critical_rh and compressor_ready }}"
+        sequence: &turn_on
           - condition: template
-            value_template: "{{ indoor_rh >= critical_rh and compressor_ready }}"
-        sequence:
+            value_template: "{{ is_state(_humidifier_id, 'off') }}"
           - action: humidifier.turn_on
             target:
               entity_id: !input humidifier_entity
+          - if: "{{ _override_device_hygrostat }}"
+            then:
+              - action: humidifier.set_humidity
+                target:
+                  entity_id: !input humidifier_entity
+                data:
+                  humidity: "{{ state_attr(_humidifier_id, 'min_humidity') | int(0) }}"
+                continue_on_error: true
 
-      # Branch 3: Window or door open → turn off
-      # Running the dehumidifier with an open window wastes energy
-      - conditions:
-          - condition: template
-            value_template: "{{ any_window_open }}"
-        sequence:
-          - action: humidifier.turn_off
-            target:
-              entity_id: !input humidifier_entity
+      # 3. Window or door open → off
+      - conditions: "{{ any_window_open }}"
+        sequence: *turn_off
 
-      # Branch 4: Normal turn-on
-      # Conditions: indoor humidity above target AND ventilation would not help
-      #             AND AH differential sufficient AND compressor ready
-      - conditions:
-          - condition: template
-            value_template: >
-              {{ indoor_rh >= target_rh
-                 and not ventilation_preferred
-                 and ah_diff_ok
-                 and compressor_ready }}
-        sequence:
-          - action: humidifier.turn_on
-            target:
-              entity_id: !input humidifier_entity
+      # 4. Nobody ventilated within the wait time, or restart/reload (the wait
+      #    timer does not survive it) → the dehumidifier takes over
+      - conditions: >-
+          {{ trigger.id in ['ventilate_timeout', 'restart']
+             and indoor_humidity >= _target_rh and compressor_ready }}
+        sequence: *turn_on
 
-      # Branch 5: Turn off (hysteresis)
-      # Only turns off once humidity drops well below the target threshold
-      - conditions:
-          - condition: template
-            value_template: "{{ indoor_rh < turn_off_rh }}"
-        sequence:
-          - action: humidifier.turn_off
-            target:
-              entity_id: !input humidifier_entity
+      # 5. Ventilation recommended and announced → wait for someone to open a window
+      - conditions: "{{ ventilation_recommended and _ventilate_actions | count > 0 }}"
+        sequence: []
 
-    # Hysteresis zone (between turn_off_rh and target_rh):
-    # No branch matches → no action → device stays in its current state
+      # 6. Above the target humidity → on
+      - conditions: "{{ indoor_humidity >= _target_rh and compressor_ready }}"
+        sequence: *turn_on
+
+      # 7. Below the turn-off threshold → off (after the minimum run time)
+      - conditions: "{{ indoor_humidity < _turn_off_rh and min_run_done }}"
+        sequence: *turn_off
+
+    # Between both thresholds (hysteresis): no branch matches, state stays as is
     default: []
