@@ -20,6 +20,8 @@ blueprint:
       depends on the outdoor temperature).
     - If nobody opens a window in time, the dehumidifier takes over.
     - Turns off while a window or door is open.
+    - Optional emergency operation with open windows or outside the time
+      window.
     - Compressor protection with minimum run and off times.
     - Optional active time window and override of the device's hygrostat.
 
@@ -111,8 +113,8 @@ blueprint:
           name: Window/Door Sensors (optional)
           description: >
             One or more window or door sensors. While at least one reports
-            "open", the dehumidifier is turned off (except at critical
-            humidity). Also used for the "close the window" actions.
+            "open", the dehumidifier is turned off. Also used for the "close
+            the window" actions.
           default: []
           selector:
             entity:
@@ -124,6 +126,16 @@ blueprint:
                   device_class: door
                 - domain: binary_sensor
                   device_class: opening
+
+        critical_ignores_windows:
+          name: Emergency Also With Open Windows
+          description: >
+            When enabled, the dehumidifier also runs while a window or door is
+            open once the critical humidity is reached. It keeps running until
+            the humidity is 2 points below the critical humidity.
+          default: false
+          selector:
+            boolean:
 
     thresholds:
       name: Thresholds & Compressor
@@ -163,7 +175,9 @@ blueprint:
           name: Critical Humidity – Emergency Override (%)
           description: >
             From this room humidity on, the dehumidifier turns on regardless
-            of outdoor conditions, open windows or presence (mold protection).
+            of outdoor conditions or presence (mold protection). Open windows
+            and the time window still stop it, unless the emergency options
+            are enabled.
           default: 60
           selector:
             number:
@@ -348,7 +362,8 @@ blueprint:
           name: Emergency Also Outside the Time Window
           description: >
             When enabled, the dehumidifier also runs outside the time window
-            while the critical humidity is reached.
+            once the critical humidity is reached. It keeps running until the
+            humidity is 2 points below the critical humidity.
           default: false
           selector:
             boolean:
@@ -487,6 +502,7 @@ variables:
   _start_time: !input start_time
   _end_time: !input end_time
   _critical_ignores_time_window: !input critical_ignores_time_window
+  _critical_ignores_windows: !input critical_ignores_windows
   _override_device_hygrostat: !input override_device_hygrostat
 
   # Room humidity (the condition below guarantees a valid value)
@@ -517,6 +533,12 @@ variables:
 
   any_window_open: "{{ expand(_window_sensors) | selectattr('state', 'eq', 'on') | list | count > 0 }}"
 
+  # Emergency: critical humidity, or still less than 2 points below it while running
+  # (prevents on/off cycling around the critical value)
+  emergency: >-
+    {{ indoor_humidity >= _critical_rh
+       or (is_state(_humidifier_id, 'on') and indoor_humidity >= _critical_rh - 2) }}
+
   # Compressor protection: restart only after the minimum off time
   compressor_ready: >-
     {%- set dehumidifier = states[_humidifier_id] -%}
@@ -543,11 +565,10 @@ action:
 
   # Dehumidifier control: the first matching branch wins
   - choose:
-      # 1. Outside the time window → off (emergency only if allowed)
+      # 1. Outside the time window → off (unless the emergency option applies)
       - conditions: >-
           {{ _enable_time_check and not in_time_window
-             and not (_critical_ignores_time_window
-                      and (indoor_humidity >= _critical_rh or not min_run_done)) }}
+             and not (_critical_ignores_time_window and emergency) }}
         sequence: &turn_off
           - condition: template
             value_template: "{{ is_state(_humidifier_id, 'on') }}"
@@ -555,8 +576,10 @@ action:
             target:
               entity_id: !input humidifier_entity
 
-      # 2. Emergency → on, even with open windows (mold protection)
-      - conditions: "{{ indoor_humidity >= _critical_rh and compressor_ready }}"
+      # 2. Critical humidity → on (with open windows only if that option is enabled)
+      - conditions: >-
+          {{ indoor_humidity >= _critical_rh and compressor_ready
+             and (not any_window_open or _critical_ignores_windows) }}
         sequence: &turn_on
           - condition: template
             value_template: "{{ is_state(_humidifier_id, 'off') }}"
@@ -572,8 +595,8 @@ action:
                   humidity: "{{ state_attr(_humidifier_id, 'min_humidity') | int(0) }}"
                 continue_on_error: true
 
-      # 3. Window or door open → off
-      - conditions: "{{ any_window_open }}"
+      # 3. Window or door open → off (unless the emergency option applies)
+      - conditions: "{{ any_window_open and not (_critical_ignores_windows and emergency) }}"
         sequence: *turn_off
 
       # 4. Nobody ventilated within the wait time, or restart/reload (the wait

@@ -41,7 +41,7 @@ Controls a dehumidifier with your own room sensor instead of the device's built-
 - Indoor relative humidity sensor (required)
 - For ventilation recommendations: indoor temperature, outdoor temperature and outdoor humidity sensors (a weather service is fine)
 
-How it decides, with 50 calculated scenarios: [dehumidifier_control.md](climate/dehumidifier_control.md)
+How it decides, with 54 calculated scenarios: [dehumidifier_control.md](climate/dehumidifier_control.md)
 
 [![Import Blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https://raw.githubusercontent.com/Spegeli/homeassistant-blueprints/main/climate/dehumidifier_control.yaml)
 

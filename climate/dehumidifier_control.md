@@ -1,6 +1,6 @@
 # Smart Dehumidifier Control – how it decides
 
-Background for [`dehumidifier_control.yaml`](dehumidifier_control.yaml) (version 3.0): the physics behind the decisions, the exact logic and 50 calculated scenarios.
+Background for [`dehumidifier_control.yaml`](dehumidifier_control.yaml) (version 3.0): the physics behind the decisions, the exact logic and 54 calculated scenarios.
 
 - [1. Relative humidity, absolute humidity and dew point](#1-relative-humidity-absolute-humidity-and-dew-point)
 - [2. When ventilation dries the room](#2-when-ventilation-dries-the-room)
@@ -84,9 +84,9 @@ The automation runs every 5 minutes and whenever the room humidity, a window/doo
 
 | # | Condition | Dehumidifier |
 |---|---|---|
-| 1 | Time window enabled and outside it (at critical humidity only if "Emergency Also Outside the Time Window" is on) | off |
-| 2 | Room humidity ≥ critical humidity (60 %), even with an open window | on |
-| 3 | A window or door is open | off |
+| 1 | Time window enabled and outside it, unless "Emergency Also Outside the Time Window" is on and there is an emergency | off |
+| 2 | Room humidity ≥ critical humidity (60 %); with an open window only if "Emergency Also With Open Windows" is on | on |
+| 3 | A window or door is open, unless "Emergency Also With Open Windows" is on and there is an emergency | off |
 | 4 | Ventilation was recommended for the whole wait time (30 min) and nobody opened a window, or Home Assistant restarted/reloaded | on |
 | 5 | Ventilation is recommended and "please ventilate" actions are set | waits (no change) |
 | 6 | Room humidity ≥ target humidity (55 %) | on |
@@ -94,6 +94,8 @@ The automation runs every 5 minutes and whenever the room humidity, a window/doo
 | – | Otherwise (between both thresholds) | no change |
 
 Turning on always respects the minimum off time (5 min), which protects the compressor.
+
+**Emergency** means the room humidity is at or above the critical humidity, or the dehumidifier is running and the humidity is less than 2 points below it. Without these 2 points the dehumidifier would switch on and off every few minutes around the critical value, for example at night or with an open window. Both emergency options are off by default: an open window dries the room faster than the dehumidifier, and the time window is usually meant as quiet time.
 
 **Ventilation is recommended** when all of these apply:
 
@@ -197,7 +199,8 @@ All values are calculated with the formulas above and the logic of version 3.0.
 | 9 | 20 °C / 57 % | 9.8 g/m³ / 11.2 °C | 2 °C / 90 % | 5.0 g/m³ / 0.5 °C | +10.7 K | 27 % | +30 pts | defaults | window open 4 min | Dehumidifier stays **off** – window open |
 | 10 | 20 °C / 57 % | 9.8 g/m³ / 11.2 °C | 2 °C / 90 % | 5.0 g/m³ / 0.5 °C | +10.7 K | 27 % | +30 pts | defaults | window open 6 min | Dehumidifier stays **off** – window open; **close window** (open ≥ 5 min) |
 | 11 | 17.5 °C / 52 % | 7.7 g/m³ / 7.5 °C | 2 °C / 90 % | 5.0 g/m³ / 0.5 °C | +7.0 K | 32 % | +20 pts | defaults | window open 3 min, room cooled down | Dehumidifier stays **off** – window open; **close window** (room too cold) |
-| 12 | 20 °C / 62 % | 10.7 g/m³ / 12.5 °C | 2 °C / 90 % | 5.0 g/m³ / 0.5 °C | +12.0 K | 27 % | +35 pts | defaults | window open 2 min | Dehumidifier **on** – critical humidity (≥ 60 %) |
+| 12 | 20 °C / 62 % | 10.7 g/m³ / 12.5 °C | 2 °C / 90 % | 5.0 g/m³ / 0.5 °C | +12.0 K | 27 % | +35 pts | defaults | window open 2 min | Dehumidifier stays **off** – window open |
+| 13 | 20 °C / 62 % | 10.7 g/m³ / 12.5 °C | 2 °C / 90 % | 5.0 g/m³ / 0.5 °C | +12.0 K | 27 % | +35 pts | **emergency with open windows** | window open 2 min | Dehumidifier **on** – critical humidity (≥ 60 %) |
 <!-- END scenarios-winter -->
 
 ### Spring and autumn
@@ -205,15 +208,15 @@ All values are calculated with the formulas above and the logic of version 3.0.
 <!-- BEGIN scenarios-spring -->
 | # | Indoor | Indoor AH / dew point | Outdoor | Outdoor AH / dew point | Δ dew point | Outdoor air in the room | Drying effect | Settings | Situation | Result |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 13 | 21 °C / 58 % | 10.6 g/m³ / 12.4 °C | 12 °C / 70 % | 7.4 g/m³ / 6.7 °C | +5.7 K | 40 % | +18 pts | defaults | – | **Ventilate**, dehumidifier waits – outdoor air 18 points drier |
-| 14 | 21 °C / 58 % | 10.6 g/m³ / 12.4 °C | 15 °C / 85 % | 10.9 g/m³ / 12.5 °C | −0.1 K | 58 % | 0 pts | defaults | – | Dehumidifier **on** – drying effect 0 < 6 points |
-| 15 | 19 °C / 56 % | 9.1 g/m³ / 10.0 °C | 14 °C / 70 % | 8.4 g/m³ / 8.6 °C | +1.4 K | 51 % | +5 pts | defaults | – | Dehumidifier **on** – drying effect 5 < 6 points |
-| 16 | 19 °C / 56 % | 9.1 g/m³ / 10.0 °C | 14 °C / 70 % | 8.4 g/m³ / 8.6 °C | +1.4 K | 51 % | +5 pts | **min. effect 4 pts** | – | **Ventilate**, dehumidifier waits – outdoor air 5 points drier |
-| 17 | 21 °C / 58 % | 10.6 g/m³ / 12.4 °C | 10 °C / 95 % | 8.9 g/m³ / 9.2 °C | +3.2 K | 47 % | +11 pts | defaults | rain | **Ventilate**, dehumidifier waits – outdoor air 11 points drier |
-| 18 | 20 °C / 55 % | 9.5 g/m³ / 10.7 °C | 19 °C / 50 % | 8.1 g/m³ / 8.3 °C | +2.3 K | 47 % | +8 pts | defaults | – | **Ventilate**, dehumidifier waits – outdoor air 8 points drier |
-| 19 | 20 °C / 55 % | 9.5 g/m³ / 10.7 °C | 19 °C / 50 % | 8.1 g/m³ / 8.3 °C | +2.3 K | 47 % | +8 pts | **min. effect 10 pts** | – | Dehumidifier **on** – drying effect 8 < 10 points |
-| 20 | 21 °C / 55 % | 10.1 g/m³ / 11.6 °C | 18 °C / 45 % | 6.9 g/m³ / 5.9 °C | +5.7 K | 37 % | +18 pts | defaults | – | **Ventilate**, dehumidifier waits – outdoor air 18 points drier |
-| 21 | 21 °C / 50 % | 9.1 g/m³ / 10.2 °C | 16 °C / 65 % | 8.8 g/m³ / 9.4 °C | +0.8 K | 48 % | +2 pts | defaults | window open 5 min | Dehumidifier stays **off** – window open; **close window** (air exchanged) |
+| 14 | 21 °C / 58 % | 10.6 g/m³ / 12.4 °C | 12 °C / 70 % | 7.4 g/m³ / 6.7 °C | +5.7 K | 40 % | +18 pts | defaults | – | **Ventilate**, dehumidifier waits – outdoor air 18 points drier |
+| 15 | 21 °C / 58 % | 10.6 g/m³ / 12.4 °C | 15 °C / 85 % | 10.9 g/m³ / 12.5 °C | −0.1 K | 58 % | 0 pts | defaults | – | Dehumidifier **on** – drying effect 0 < 6 points |
+| 16 | 19 °C / 56 % | 9.1 g/m³ / 10.0 °C | 14 °C / 70 % | 8.4 g/m³ / 8.6 °C | +1.4 K | 51 % | +5 pts | defaults | – | Dehumidifier **on** – drying effect 5 < 6 points |
+| 17 | 19 °C / 56 % | 9.1 g/m³ / 10.0 °C | 14 °C / 70 % | 8.4 g/m³ / 8.6 °C | +1.4 K | 51 % | +5 pts | **min. effect 4 pts** | – | **Ventilate**, dehumidifier waits – outdoor air 5 points drier |
+| 18 | 21 °C / 58 % | 10.6 g/m³ / 12.4 °C | 10 °C / 95 % | 8.9 g/m³ / 9.2 °C | +3.2 K | 47 % | +11 pts | defaults | rain | **Ventilate**, dehumidifier waits – outdoor air 11 points drier |
+| 19 | 20 °C / 55 % | 9.5 g/m³ / 10.7 °C | 19 °C / 50 % | 8.1 g/m³ / 8.3 °C | +2.3 K | 47 % | +8 pts | defaults | – | **Ventilate**, dehumidifier waits – outdoor air 8 points drier |
+| 20 | 20 °C / 55 % | 9.5 g/m³ / 10.7 °C | 19 °C / 50 % | 8.1 g/m³ / 8.3 °C | +2.3 K | 47 % | +8 pts | **min. effect 10 pts** | – | Dehumidifier **on** – drying effect 8 < 10 points |
+| 21 | 21 °C / 55 % | 10.1 g/m³ / 11.6 °C | 18 °C / 45 % | 6.9 g/m³ / 5.9 °C | +5.7 K | 37 % | +18 pts | defaults | – | **Ventilate**, dehumidifier waits – outdoor air 18 points drier |
+| 22 | 21 °C / 50 % | 9.1 g/m³ / 10.2 °C | 16 °C / 65 % | 8.8 g/m³ / 9.4 °C | +0.8 K | 48 % | +2 pts | defaults | window open 5 min | Dehumidifier stays **off** – window open; **close window** (air exchanged) |
 <!-- END scenarios-spring -->
 
 ### Summer
@@ -221,17 +224,17 @@ All values are calculated with the formulas above and the logic of version 3.0.
 <!-- BEGIN scenarios-summer -->
 | # | Indoor | Indoor AH / dew point | Outdoor | Outdoor AH / dew point | Δ dew point | Outdoor air in the room | Drying effect | Settings | Situation | Result |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 22 | 21 °C / 58 % | 10.6 g/m³ / 12.4 °C | 33 °C / 35 % | 12.4 g/m³ / 15.5 °C | −3.1 K | 71 % | −13 pts | defaults | muggy | Dehumidifier **on** – drying effect −13 < 6 points |
-| 23 | 21 °C / 58 % | 10.6 g/m³ / 12.4 °C | 33 °C / 25 % | 8.9 g/m³ / 10.4 °C | +2.1 K | 51 % | +7 pts | defaults | dry heat | Dehumidifier **on** – outdoor air warmer than comfort and room |
-| 24 | 21 °C / 58 % | 10.6 g/m³ / 12.4 °C | 33 °C / 25 % | 8.9 g/m³ / 10.4 °C | +2.1 K | 51 % | +7 pts | **comfort 30 °C** | dry heat | Dehumidifier **on** – outdoor air warmer than comfort and room |
-| 25 | 21 °C / 58 % | 10.6 g/m³ / 12.4 °C | 16 °C / 65 % | 8.8 g/m³ / 9.4 °C | +3.0 K | 48 % | +10 pts | defaults | night | **Ventilate**, dehumidifier waits – outdoor air 10 points drier |
-| 26 | 24 °C / 58 % | 12.6 g/m³ / 15.2 °C | 22 °C / 45 % | 8.7 g/m³ / 9.5 °C | +5.7 K | 40 % | +18 pts | defaults | – | **Ventilate**, dehumidifier waits – outdoor air 18 points drier |
-| 27 | 24 °C / 58 % | 12.6 g/m³ / 15.2 °C | 26 °C / 40 % | 9.7 g/m³ / 11.4 °C | +3.9 K | 45 % | +13 pts | defaults | – | Dehumidifier **on** – outdoor air warmer than comfort and room |
-| 28 | 22 °C / 58 % | 11.2 g/m³ / 13.4 °C | 19 °C / 50 % | 8.1 g/m³ / 8.3 °C | +5.0 K | 42 % | +16 pts | defaults | – | **Ventilate**, dehumidifier waits – outdoor air 16 points drier |
-| 29 | 22 °C / 58 % | 11.2 g/m³ / 13.4 °C | 19 °C / 70 % | 11.4 g/m³ / 13.4 °C | 0.0 K | 58 % | 0 pts | defaults | – | Dehumidifier **on** – drying effect 0 < 6 points |
-| 30 | 20 °C / 58 % | 10.0 g/m³ / 11.5 °C | 16 °C / 88 % | 12.0 g/m³ / 14.0 °C | −2.5 K | 68 % | −10 pts | defaults | humid morning | Dehumidifier **on** – drying effect −10 < 6 points |
-| 31 | 22 °C / 58 % | 11.2 g/m³ / 13.4 °C | 28 °C / 40 % | 10.9 g/m³ / 13.1 °C | +0.2 K | 57 % | +1 pts | defaults | – | Dehumidifier **on** – drying effect 1 < 6 points |
-| 32 | 21 °C / 65 % | 11.9 g/m³ / 14.2 °C | 33 °C / 35 % | 12.4 g/m³ / 15.5 °C | −1.3 K | 71 % | −6 pts | defaults | muggy | Dehumidifier **on** – critical humidity (≥ 60 %) |
+| 23 | 21 °C / 58 % | 10.6 g/m³ / 12.4 °C | 33 °C / 35 % | 12.4 g/m³ / 15.5 °C | −3.1 K | 71 % | −13 pts | defaults | muggy | Dehumidifier **on** – drying effect −13 < 6 points |
+| 24 | 21 °C / 58 % | 10.6 g/m³ / 12.4 °C | 33 °C / 25 % | 8.9 g/m³ / 10.4 °C | +2.1 K | 51 % | +7 pts | defaults | dry heat | Dehumidifier **on** – outdoor air warmer than comfort and room |
+| 25 | 21 °C / 58 % | 10.6 g/m³ / 12.4 °C | 33 °C / 25 % | 8.9 g/m³ / 10.4 °C | +2.1 K | 51 % | +7 pts | **comfort 30 °C** | dry heat | Dehumidifier **on** – outdoor air warmer than comfort and room |
+| 26 | 21 °C / 58 % | 10.6 g/m³ / 12.4 °C | 16 °C / 65 % | 8.8 g/m³ / 9.4 °C | +3.0 K | 48 % | +10 pts | defaults | night | **Ventilate**, dehumidifier waits – outdoor air 10 points drier |
+| 27 | 24 °C / 58 % | 12.6 g/m³ / 15.2 °C | 22 °C / 45 % | 8.7 g/m³ / 9.5 °C | +5.7 K | 40 % | +18 pts | defaults | – | **Ventilate**, dehumidifier waits – outdoor air 18 points drier |
+| 28 | 24 °C / 58 % | 12.6 g/m³ / 15.2 °C | 26 °C / 40 % | 9.7 g/m³ / 11.4 °C | +3.9 K | 45 % | +13 pts | defaults | – | Dehumidifier **on** – outdoor air warmer than comfort and room |
+| 29 | 22 °C / 58 % | 11.2 g/m³ / 13.4 °C | 19 °C / 50 % | 8.1 g/m³ / 8.3 °C | +5.0 K | 42 % | +16 pts | defaults | – | **Ventilate**, dehumidifier waits – outdoor air 16 points drier |
+| 30 | 22 °C / 58 % | 11.2 g/m³ / 13.4 °C | 19 °C / 70 % | 11.4 g/m³ / 13.4 °C | 0.0 K | 58 % | 0 pts | defaults | – | Dehumidifier **on** – drying effect 0 < 6 points |
+| 31 | 20 °C / 58 % | 10.0 g/m³ / 11.5 °C | 16 °C / 88 % | 12.0 g/m³ / 14.0 °C | −2.5 K | 68 % | −10 pts | defaults | humid morning | Dehumidifier **on** – drying effect −10 < 6 points |
+| 32 | 22 °C / 58 % | 11.2 g/m³ / 13.4 °C | 28 °C / 40 % | 10.9 g/m³ / 13.1 °C | +0.2 K | 57 % | +1 pts | defaults | – | Dehumidifier **on** – drying effect 1 < 6 points |
+| 33 | 21 °C / 65 % | 11.9 g/m³ / 14.2 °C | 33 °C / 35 % | 12.4 g/m³ / 15.5 °C | −1.3 K | 71 % | −6 pts | defaults | muggy | Dehumidifier **on** – critical humidity (≥ 60 %) |
 <!-- END scenarios-summer -->
 
 ### Other settings
@@ -239,12 +242,15 @@ All values are calculated with the formulas above and the logic of version 3.0.
 <!-- BEGIN scenarios-other -->
 | # | Indoor | Indoor AH / dew point | Outdoor | Outdoor AH / dew point | Δ dew point | Outdoor air in the room | Drying effect | Settings | Situation | Result |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 33 | 21 °C / 57 % | 10.4 g/m³ / 12.2 °C | 26 °C / 60 % | 14.6 g/m³ / 17.6 °C | −5.5 K | 81 % | −24 pts | **target 60 %, off 55 %, critical 65 %** | – | No change (stays **off**) – between both thresholds (hysteresis) |
-| 34 | 21 °C / 62 % | 11.3 g/m³ / 13.4 °C | 26 °C / 60 % | 14.6 g/m³ / 17.6 °C | −4.2 K | 81 % | −19 pts | **target 60 %, off 55 %, critical 65 %** | – | Dehumidifier **on** – drying effect −19 < 6 points |
-| 35 | 21 °C / 52 % | 9.5 g/m³ / 10.8 °C | 12 °C / 70 % | 7.4 g/m³ / 6.7 °C | +4.1 K | 40 % | +12 pts | **target 50 %, off 45 %, critical 58 %** | – | **Ventilate**, dehumidifier waits – outdoor air 12 points drier |
-| 36 | 21 °C / 57 % | 10.4 g/m³ / 12.2 °C | 12 °C / 70 % | 7.4 g/m³ / 6.7 °C | +5.5 K | 40 % | +17 pts | **window 18:00–22:00** | 14:00, outside time window, dehumidifier on | Dehumidifier **off** – outside the time window |
-| 37 | 21 °C / 63 % | 11.5 g/m³ / 13.7 °C | 26 °C / 60 % | 14.6 g/m³ / 17.6 °C | −3.9 K | 81 % | −18 pts | **window 18:00–22:00** | 14:00, outside time window | Dehumidifier stays **off** – outside the time window |
-| 38 | 21 °C / 63 % | 11.5 g/m³ / 13.7 °C | 26 °C / 60 % | 14.6 g/m³ / 17.6 °C | −3.9 K | 81 % | −18 pts | **window 18:00–22:00, emergency outside window** | 14:00, outside time window | Dehumidifier **on** – critical humidity (≥ 60 %) |
+| 34 | 21 °C / 57 % | 10.4 g/m³ / 12.2 °C | 26 °C / 60 % | 14.6 g/m³ / 17.6 °C | −5.5 K | 81 % | −24 pts | **target 60 %, off 55 %, critical 65 %** | – | No change (stays **off**) – between both thresholds (hysteresis) |
+| 35 | 21 °C / 62 % | 11.3 g/m³ / 13.4 °C | 26 °C / 60 % | 14.6 g/m³ / 17.6 °C | −4.2 K | 81 % | −19 pts | **target 60 %, off 55 %, critical 65 %** | – | Dehumidifier **on** – drying effect −19 < 6 points |
+| 36 | 21 °C / 52 % | 9.5 g/m³ / 10.8 °C | 12 °C / 70 % | 7.4 g/m³ / 6.7 °C | +4.1 K | 40 % | +12 pts | **target 50 %, off 45 %, critical 58 %** | – | **Ventilate**, dehumidifier waits – outdoor air 12 points drier |
+| 37 | 21 °C / 57 % | 10.4 g/m³ / 12.2 °C | 12 °C / 70 % | 7.4 g/m³ / 6.7 °C | +5.5 K | 40 % | +17 pts | **window 18:00–22:00** | 14:00, outside time window, dehumidifier on | Dehumidifier **off** – outside the time window |
+| 38 | 21 °C / 63 % | 11.5 g/m³ / 13.7 °C | 26 °C / 60 % | 14.6 g/m³ / 17.6 °C | −3.9 K | 81 % | −18 pts | **window 18:00–22:00** | 14:00, outside time window | Dehumidifier stays **off** – outside the time window |
+| 39 | 21 °C / 63 % | 11.5 g/m³ / 13.7 °C | 26 °C / 60 % | 14.6 g/m³ / 17.6 °C | −3.9 K | 81 % | −18 pts | **window 18:00–22:00, emergency outside window** | 14:00, outside time window | Dehumidifier **on** – critical humidity (≥ 60 %) |
+| 40 | 21 °C / 59 % | 10.8 g/m³ / 12.7 °C | 26 °C / 60 % | 14.6 g/m³ / 17.6 °C | −5.0 K | 81 % | −22 pts | **window 18:00–22:00, emergency outside window** | 14:00, outside time window, emergency run, dehumidifier on | Dehumidifier stays **on** – emergency run continues until below 58 % |
+| 41 | 21 °C / 57.5 % | 10.5 g/m³ / 12.3 °C | 26 °C / 60 % | 14.6 g/m³ / 17.6 °C | −5.3 K | 81 % | −24 pts | **window 18:00–22:00, emergency outside window** | 14:00, outside time window, emergency run, dehumidifier on | Dehumidifier **off** – outside the time window |
+| 42 | 20 °C / 59 % | 10.2 g/m³ / 11.7 °C | 2 °C / 90 % | 5.0 g/m³ / 0.5 °C | +11.2 K | 27 % | +32 pts | **emergency with open windows** | window open 10 min, emergency run, dehumidifier on | Dehumidifier stays **on** – emergency run continues until below 58 %; **close window** (open ≥ 5 min) |
 <!-- END scenarios-other -->
 
 ### Special situations
@@ -252,18 +258,18 @@ All values are calculated with the formulas above and the logic of version 3.0.
 <!-- BEGIN scenarios-special -->
 | # | Indoor | Indoor AH / dew point | Outdoor | Outdoor AH / dew point | Δ dew point | Outdoor air in the room | Drying effect | Settings | Situation | Result |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 39 | 21 °C / 57 % | 10.4 g/m³ / 12.2 °C | – | – | – | – | – | defaults | no outdoor sensors | Dehumidifier **on** – no ventilation data |
-| 40 | 21 °C / 57 % | 10.4 g/m³ / 12.2 °C | – | – | – | – | – | defaults | no indoor temperature sensor | Dehumidifier **on** – no indoor temperature |
-| 41 | 21 °C / 57 % | 10.4 g/m³ / 12.2 °C | 12 °C / 70 % | 7.4 g/m³ / 6.7 °C | +5.5 K | 40 % | +17 pts | defaults | no "please ventilate" actions | Dehumidifier **on** – ventilation not announced (no actions) |
-| 42 | 21 °C / 57 % | 10.4 g/m³ / 12.2 °C | 12 °C / 70 % | 7.4 g/m³ / 6.7 °C | +5.5 K | 40 % | +17 pts | defaults | recommended for 30 min, no window opened | Dehumidifier **on** – nobody ventilated within the wait time |
-| 43 | 21 °C / 57 % | 10.4 g/m³ / 12.2 °C | 12 °C / 70 % | 7.4 g/m³ / 6.7 °C | +5.5 K | 40 % | +17 pts | defaults | Home Assistant restarted | Dehumidifier **on** – restart: the wait timer starts from scratch |
-| 44 | 21 °C / 57 % | 10.4 g/m³ / 12.2 °C | 12 °C / 70 % | 7.4 g/m³ / 6.7 °C | +5.5 K | 40 % | +17 pts | defaults | dehumidifier already running | **Ventilate**, dehumidifier keeps running – outdoor air 17 points drier |
-| 45 | 21 °C / 53 % | 9.7 g/m³ / 11.1 °C | 12 °C / 70 % | 7.4 g/m³ / 6.7 °C | +4.4 K | 40 % | +13 pts | defaults | between thresholds, running | No change (stays **on**) – between both thresholds (hysteresis) |
-| 46 | 21 °C / 53 % | 9.7 g/m³ / 11.1 °C | 12 °C / 70 % | 7.4 g/m³ / 6.7 °C | +4.4 K | 40 % | +13 pts | defaults | between thresholds, off | No change (stays **off**) – between both thresholds (hysteresis) |
-| 47 | 21 °C / 49 % | 9.0 g/m³ / 9.9 °C | 12 °C / 70 % | 7.4 g/m³ / 6.7 °C | +3.2 K | 40 % | +9 pts | defaults | running for 8 min | No change (stays **on**) – minimum run time (8 of 15 min) |
-| 48 | 21 °C / 49 % | 9.0 g/m³ / 9.9 °C | 12 °C / 70 % | 7.4 g/m³ / 6.7 °C | +3.2 K | 40 % | +9 pts | defaults | running for 40 min | Dehumidifier **off** – below 50 % |
-| 49 | 21 °C / 57 % | 10.4 g/m³ / 12.2 °C | 26 °C / 60 % | 14.6 g/m³ / 17.6 °C | −5.5 K | 81 % | −24 pts | defaults | off for 3 min | No change (stays **off**) – compressor protection (3 of 5 min off) |
-| 50 | 21 °C / 57 % | 10.4 g/m³ / 12.2 °C | 12 °C / 70 % | 7.4 g/m³ / 6.7 °C | +5.5 K | 40 % | +17 pts | defaults | no presence sensors | **Ventilate**, dehumidifier waits – outdoor air 17 points drier |
+| 43 | 21 °C / 57 % | 10.4 g/m³ / 12.2 °C | – | – | – | – | – | defaults | no outdoor sensors | Dehumidifier **on** – no ventilation data |
+| 44 | 21 °C / 57 % | 10.4 g/m³ / 12.2 °C | – | – | – | – | – | defaults | no indoor temperature sensor | Dehumidifier **on** – no indoor temperature |
+| 45 | 21 °C / 57 % | 10.4 g/m³ / 12.2 °C | 12 °C / 70 % | 7.4 g/m³ / 6.7 °C | +5.5 K | 40 % | +17 pts | defaults | no "please ventilate" actions | Dehumidifier **on** – ventilation not announced (no actions) |
+| 46 | 21 °C / 57 % | 10.4 g/m³ / 12.2 °C | 12 °C / 70 % | 7.4 g/m³ / 6.7 °C | +5.5 K | 40 % | +17 pts | defaults | recommended for 30 min, no window opened | Dehumidifier **on** – nobody ventilated within the wait time |
+| 47 | 21 °C / 57 % | 10.4 g/m³ / 12.2 °C | 12 °C / 70 % | 7.4 g/m³ / 6.7 °C | +5.5 K | 40 % | +17 pts | defaults | Home Assistant restarted | Dehumidifier **on** – restart: the wait timer starts from scratch |
+| 48 | 21 °C / 57 % | 10.4 g/m³ / 12.2 °C | 12 °C / 70 % | 7.4 g/m³ / 6.7 °C | +5.5 K | 40 % | +17 pts | defaults | dehumidifier already running | **Ventilate**, dehumidifier keeps running – outdoor air 17 points drier |
+| 49 | 21 °C / 53 % | 9.7 g/m³ / 11.1 °C | 12 °C / 70 % | 7.4 g/m³ / 6.7 °C | +4.4 K | 40 % | +13 pts | defaults | between thresholds, running | No change (stays **on**) – between both thresholds (hysteresis) |
+| 50 | 21 °C / 53 % | 9.7 g/m³ / 11.1 °C | 12 °C / 70 % | 7.4 g/m³ / 6.7 °C | +4.4 K | 40 % | +13 pts | defaults | between thresholds, off | No change (stays **off**) – between both thresholds (hysteresis) |
+| 51 | 21 °C / 49 % | 9.0 g/m³ / 9.9 °C | 12 °C / 70 % | 7.4 g/m³ / 6.7 °C | +3.2 K | 40 % | +9 pts | defaults | running for 8 min | No change (stays **on**) – minimum run time (8 of 15 min) |
+| 52 | 21 °C / 49 % | 9.0 g/m³ / 9.9 °C | 12 °C / 70 % | 7.4 g/m³ / 6.7 °C | +3.2 K | 40 % | +9 pts | defaults | running for 40 min | Dehumidifier **off** – below 50 % |
+| 53 | 21 °C / 57 % | 10.4 g/m³ / 12.2 °C | 26 °C / 60 % | 14.6 g/m³ / 17.6 °C | −5.5 K | 81 % | −24 pts | defaults | off for 3 min | No change (stays **off**) – compressor protection (3 of 5 min off) |
+| 54 | 21 °C / 57 % | 10.4 g/m³ / 12.2 °C | 12 °C / 70 % | 7.4 g/m³ / 6.7 °C | +5.5 K | 40 % | +17 pts | defaults | no presence sensors | **Ventilate**, dehumidifier waits – outdoor air 17 points drier |
 <!-- END scenarios-special -->
 
 ## 8. Sources
