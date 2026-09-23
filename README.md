@@ -65,3 +65,9 @@ Trigger actions when a specific person arrives home or leaves home.
 1. Click the **"Import Blueprint"** button on the desired blueprint
 2. Confirm in the Home Assistant dialog
 3. Create an automation based on the blueprint and assign your sensors and devices
+
+---
+
+## Contributing
+
+Bug reports, ideas and pull requests are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) first.
