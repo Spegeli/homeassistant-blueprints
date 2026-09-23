@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - "**/*.yaml"
+      - "**/*.yml"
+      - ".github/scripts/validate_blueprints.py"
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -13,19 +15,22 @@ permissions:
   contents: read
 
 jobs:
-  validate-yaml:
-    name: YAML validation
+  validate:
+    name: Validate blueprints
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.x"
 
       - name: Install dependencies
         run: pip install yamllint pyyaml
 
       - name: Lint YAML syntax
         run: |
-          yamllint -d "{extends: relaxed, rules: {line-length: {max: 200}}}" \
-            $(find . -name "*.yaml" -not -path "./.github/*")
+          yamllint -d "{extends: relaxed, ignore: '.github/', rules: {line-length: {max: 200}}}" .
 
       - name: Validate blueprint structure
         run: python .github/scripts/validate_blueprints.py
