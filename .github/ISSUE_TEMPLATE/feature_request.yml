@@ -1,29 +1,49 @@
-name: Feature Request
-description: Suggest a new feature or improvement
+name: Feature request
+description: Suggest an improvement to a blueprint or an idea for a new one.
+title: "[Feature]: "
 labels: ["enhancement"]
 body:
   - type: markdown
     attributes:
       value: |
-        Have an idea to improve a blueprint or suggest a new one? Fill out the form below.
-  - type: textarea
-    id: use_case
+        Good fits here: new options or behaviour changes for an existing blueprint, and ideas for new blueprints.
+  - type: checkboxes
+    id: checks
     attributes:
-      label: What problem does this solve?
-      description: Describe the use case or problem you want to address.
+      label: Checks
+      options:
+        - label: I searched the existing issues and this has not been requested yet.
+          required: true
+  - type: dropdown
+    id: blueprint
+    attributes:
+      label: Blueprint
+      options:
+        - Smart Dehumidifier Control (climate/dehumidifier_control.yaml)
+        - Person Arrival & Departure Automation (presence/person_presence.yaml)
+        - New blueprint
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / use case
+      description: What are you trying to do, and what is missing or inconvenient today?
     validations:
       required: true
   - type: textarea
     id: solution
     attributes:
       label: Proposed solution
-      description: Describe the feature or change you would like to see.
+      description: How should the blueprint behave?
     validations:
       required: true
   - type: textarea
     id: alternatives
     attributes:
       label: Alternatives considered
-      description: Any other solutions or workarounds you have tried.
-    validations:
-      required: false
+      description: Other solutions or workarounds you have tried.
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context

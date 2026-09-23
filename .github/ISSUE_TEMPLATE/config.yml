@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Question or Discussion
-    url: https://github.com/Spegeli/homeassistant-blueprints/discussions
-    about: For general questions please use GitHub Discussions instead of opening an issue.
+  - name: Home Assistant Community
+    url: https://community.home-assistant.io/
+    about: General questions about Home Assistant, automations and blueprints.
+  - name: Home Assistant blueprint documentation
+    url: https://www.home-assistant.io/docs/automation/using_blueprints/
+    about: How to import blueprints and create automations from them.

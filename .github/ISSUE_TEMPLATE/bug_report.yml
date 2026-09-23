@@ -1,43 +1,59 @@
-name: Bug Report
-description: Report a bug or unexpected behavior
+name: Bug report
+description: Report a problem with one of the blueprints.
+title: "[Bug]: "
 labels: ["bug"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for taking the time to report a bug! Please fill out as much as possible.
-  - type: input
-    id: ha_version
+        Thanks for taking the time to report a problem!
+
+        **This repository only contains the blueprints.** Problems with Home Assistant itself or with a device integration belong in the respective project.
+  - type: checkboxes
+    id: checks
     attributes:
-      label: Home Assistant Version
-      placeholder: e.g. 2025.5.0
+      label: Checks
+      options:
+        - label: I re-imported the blueprint (Settings → Automations & scenes → Blueprints → ⋮ → Re-import blueprint) and the problem still occurs.
+          required: true
+        - label: I searched the existing issues and this has not been reported yet.
+          required: true
+  - type: dropdown
+    id: blueprint
+    attributes:
+      label: Blueprint
+      options:
+        - Smart Dehumidifier Control (climate/dehumidifier_control.yaml)
+        - Person Arrival & Departure Automation (presence/person_presence.yaml)
     validations:
       required: true
   - type: input
     id: blueprint_version
     attributes:
-      label: Blueprint Version
-      placeholder: e.g. 2026.05.29
+      label: Blueprint version
+      description: First line of the blueprint description, shown at the top of the automation editor.
+      placeholder: "2.6"
     validations:
       required: true
   - type: input
-    id: blueprint_name
+    id: ha_version
     attributes:
-      label: Blueprint
-      placeholder: e.g. climate/dehumidifier_control
+      label: Home Assistant version
+      description: Settings → About.
+      placeholder: "2026.9.2"
     validations:
       required: true
   - type: textarea
     id: description
     attributes:
       label: What happened?
-      description: A clear description of the bug.
+      description: Describe the problem.
     validations:
       required: true
   - type: textarea
     id: expected
     attributes:
-      label: What did you expect?
+      label: What did you expect to happen?
     validations:
       required: true
   - type: textarea
@@ -45,16 +61,28 @@ body:
     attributes:
       label: Steps to reproduce
       placeholder: |
-        1. Go to...
-        2. Click on...
-        3. See error
-    validations:
-      required: false
+        1. Create an automation from the blueprint with ...
+        2. ...
+        3. ...
+  - type: textarea
+    id: config
+    attributes:
+      label: Automation configuration
+      description: Open the automation → ⋮ → Edit in YAML and paste the content. Remove anything private.
+      render: yaml
+  - type: textarea
+    id: trace
+    attributes:
+      label: Automation trace
+      description: Open the automation → ⋮ → Traces, select the run that went wrong → ⋮ → Download trace. Attach the file here (drag and drop).
   - type: textarea
     id: logs
     attributes:
       label: Relevant log output
-      description: Paste any relevant logs from Settings → System → Logs.
-      render: text
-    validations:
-      required: false
+      description: Settings → System → Logs, lines that mention the automation.
+      render: shell
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Anything else that might help (screenshots, sensor states, what changed recently, ...).
