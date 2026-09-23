@@ -31,29 +31,18 @@ blueprint:
   homeassistant:
     min_version: 2024.8.0
   input:
-    humidifier_entity:
+    dehumidifier:
       name: Dehumidifier
-      description: "Select the dehumidifier entity (domain: humidifier)"
-      selector:
-        entity:
-          domain: humidifier
-
-    override_device_hygrostat:
-      name: Override the Device's Hygrostat
-      description: >
-        Sets the device's target humidity to its minimum every time the
-        automation turns it on, so only your room sensor decides when it
-        stops. Useful when the built-in sensor sits in the device's own dry
-        exhaust air and stops too early.
-      default: false
-      selector:
-        boolean:
-
-    indoor_sensors:
-      name: Indoor Sensors
-      icon: mdi:home-thermometer
+      icon: mdi:air-humidifier
       collapsed: false
       input:
+        humidifier_entity:
+          name: Dehumidifier
+          description: "Select the dehumidifier entity (domain: humidifier)"
+          selector:
+            entity:
+              domain: humidifier
+
         indoor_rh_sensor:
           name: Indoor – Relative Humidity
           description: Room humidity sensor (%). Controls the dehumidifier.
@@ -63,80 +52,13 @@ blueprint:
                 - domain: sensor
                   device_class: humidity
 
-        indoor_temp_sensor:
-          name: Indoor – Temperature (optional)
+        override_device_hygrostat:
+          name: Override the Device's Hygrostat
           description: >
-            Room temperature sensor (°C), ideally the same device as the
-            humidity sensor. Needed for ventilation recommendations. Without
-            it the dehumidifier is controlled by humidity only, and the "close
-            the window" actions only use the maximum ventilation time.
-          default: ""
-          selector:
-            entity:
-              filter:
-                - domain: sensor
-                  device_class: temperature
-
-    outdoor_sensors:
-      name: Outdoor Sensors (optional)
-      icon: mdi:weather-partly-cloudy
-      collapsed: true
-      description: >
-        Needed for ventilation recommendations. Sensors of a weather service
-        (for example DWD) are fine. Leave both empty to control the
-        dehumidifier on indoor humidity only.
-      input:
-        outdoor_rh_sensor:
-          name: Outdoor – Relative Humidity (optional)
-          description: Outdoor humidity sensor (%).
-          default: ""
-          selector:
-            entity:
-              filter:
-                - domain: sensor
-                  device_class: humidity
-
-        outdoor_temp_sensor:
-          name: Outdoor – Temperature (optional)
-          description: >
-            Outdoor temperature sensor (°C). Also sets the maximum ventilation
-            time of the "close the window" actions.
-          default: ""
-          selector:
-            entity:
-              filter:
-                - domain: sensor
-                  device_class: temperature
-
-    windows_doors:
-      name: Windows & Doors
-      icon: mdi:window-open
-      collapsed: true
-      input:
-        window_door_sensors:
-          name: Window/Door Sensors (optional)
-          description: >
-            One or more window or door sensors. While at least one reports
-            "open", the dehumidifier is turned off. Also used for the "close
-            the window" actions.
-          default: []
-          selector:
-            entity:
-              multiple: true
-              filter:
-                - domain: binary_sensor
-                  device_class: window
-                - domain: binary_sensor
-                  device_class: door
-                - domain: binary_sensor
-                  device_class: opening
-
-        critical_ignores_windows:
-          name: Emergency Also With Open Windows
-          description: >
-            When enabled, the dehumidifier also runs while a window or door is
-            open once the critical humidity is reached. It keeps running until
-            the humidity is 2 points below the critical humidity.
+            Sets the device's target humidity to its minimum every time the
+            automation turns it on, so only your room sensor decides when it
+            stops. Useful when the built-in sensor sits in the device's own
+            dry exhaust air and stops too early.
           default: false
           selector:
             boolean:
@@ -222,11 +144,84 @@ blueprint:
               unit_of_measurement: "min"
               mode: slider
 
-    presence:
-      name: Presence
-      icon: mdi:account-multiple
+    windows_doors:
+      name: Windows & Doors
+      icon: mdi:window-open
       collapsed: true
       input:
+        window_door_sensors:
+          name: Window/Door Sensors (optional)
+          description: >
+            One or more window or door sensors. While at least one reports
+            "open", the dehumidifier is turned off. Also used for the "close
+            the window" actions.
+          default: []
+          selector:
+            entity:
+              multiple: true
+              filter:
+                - domain: binary_sensor
+                  device_class: window
+                - domain: binary_sensor
+                  device_class: door
+                - domain: binary_sensor
+                  device_class: opening
+
+        critical_ignores_windows:
+          name: Emergency Also With Open Windows
+          description: >
+            When enabled, the dehumidifier also runs while a window or door is
+            open once the critical humidity is reached. It keeps running until
+            the humidity is 2 points below the critical humidity.
+          default: false
+          selector:
+            boolean:
+
+    ventilation_sensors:
+      name: Ventilation – Sensors
+      icon: mdi:thermometer-water
+      collapsed: true
+      description: >
+        Ventilation recommendations need the indoor temperature and both
+        outdoor sensors. Sensors of a weather service (for example DWD) are
+        fine outdoors. Leave them empty to control the dehumidifier on room
+        humidity only.
+      input:
+        indoor_temp_sensor:
+          name: Indoor – Temperature (optional)
+          description: >
+            Room temperature sensor (°C), ideally the same device as the
+            humidity sensor. Without it the "close the window" actions only
+            use the maximum ventilation time.
+          default: ""
+          selector:
+            entity:
+              filter:
+                - domain: sensor
+                  device_class: temperature
+
+        outdoor_rh_sensor:
+          name: Outdoor – Relative Humidity (optional)
+          description: Outdoor humidity sensor (%).
+          default: ""
+          selector:
+            entity:
+              filter:
+                - domain: sensor
+                  device_class: humidity
+
+        outdoor_temp_sensor:
+          name: Outdoor – Temperature (optional)
+          description: >
+            Outdoor temperature sensor (°C). Also sets the maximum ventilation
+            time of the "close the window" actions.
+          default: ""
+          selector:
+            entity:
+              filter:
+                - domain: sensor
+                  device_class: temperature
+
         presence_sensors:
           name: Presence Sensors (optional)
           description: >
@@ -245,14 +240,10 @@ blueprint:
                 - domain: binary_sensor
                   device_class: occupancy
 
-    ventilation_logic:
-      name: Ventilation
+    ventilation_rules:
+      name: Ventilation – Rules
       icon: mdi:air-filter
       collapsed: true
-      description: >
-        Needs the indoor temperature, both outdoor sensors and the "please
-        ventilate" actions. Without these actions nobody would know about the
-        recommendation, so the dehumidifier never waits for ventilation.
       input:
         min_drying_effect:
           name: Minimum Drying Effect (percentage points)
@@ -314,6 +305,14 @@ blueprint:
               unit_of_measurement: "min"
               mode: slider
 
+    ventilation_actions:
+      name: Ventilation – Actions
+      icon: mdi:bell-ring-outline
+      collapsed: true
+      description: >
+        Without "please ventilate" actions nobody would know about a
+        recommendation, so the dehumidifier never waits for ventilation.
+      input:
         ventilate_actions:
           name: '"Please Ventilate" Actions'
           description: >
