@@ -23,6 +23,8 @@ blueprint:
     Found a bug or have a suggestion? Open an issue on GitHub:
     https://github.com/Spegeli/homeassistant-blueprints/issues
   domain: automation
+  homeassistant:
+    min_version: 2024.6.0
   input:
     humidifier_entity:
       name: Dehumidifier
@@ -34,7 +36,7 @@ blueprint:
     indoor_sensors:
       name: Indoor Sensors
       icon: mdi:home-thermometer
-      collapsed: true
+      collapsed: false
       input:
         indoor_rh_sensor:
           name: Indoor – Relative Humidity

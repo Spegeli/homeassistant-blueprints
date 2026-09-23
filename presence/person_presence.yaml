@@ -11,6 +11,8 @@ blueprint:
     Found a bug or have a suggestion? Open an issue on GitHub:
     https://github.com/Spegeli/homeassistant-blueprints/issues
   domain: automation
+  homeassistant:
+    min_version: 2024.6.0
   input:
     person:
       name: Person
